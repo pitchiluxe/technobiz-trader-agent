@@ -14,7 +14,10 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Security, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security.api_key import APIKeyHeader
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 from api.routes import config_router, risk_router, signals_router, trades_router, trends_router
 from api.websocket_manager import ConnectionManager
@@ -65,29 +68,28 @@ app = FastAPI(
     lifespan    = lifespan,
 )
 
-# CORS: allow only localhost origins; wildcard removed for security
+# CORS: localhost + Vercel deployment origins
 _ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
-if _ENVIRONMENT == "production":
-    _allowed_origins = [
-        "http://localhost",
-        "http://localhost:8765",
-        "http://127.0.0.1",
-        "http://127.0.0.1:8765",
-    ]
-else:
-    # Development: also allow any localhost port (Electron dev server, etc.)
-    _allowed_origins = [
-        "http://localhost",
-        "http://127.0.0.1",
-        "null",        # file:// origin used by Electron in dev
-    ]
+_VERCEL_URL   = os.getenv("VERCEL_URL", "")          # auto-set by Vercel
+_allowed_origins = [
+    "http://localhost",
+    "http://localhost:8765",
+    "http://127.0.0.1",
+    "http://127.0.0.1:8765",
+    "null",   # file:// origin used by Electron in dev
+]
+if _VERCEL_URL:
+    _allowed_origins.append(f"https://{_VERCEL_URL}")
+# Allow any *.vercel.app subdomain for preview deployments
+_VERCEL_PATTERN = r"https://.*\.vercel\.app"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins     = _allowed_origins,
-    allow_credentials = True,
-    allow_methods     = ["GET", "POST"],
-    allow_headers     = ["*"],
+    allow_origins      = _allowed_origins,
+    allow_origin_regex = _VERCEL_PATTERN,
+    allow_credentials  = True,
+    allow_methods      = ["GET", "POST"],
+    allow_headers      = ["*"],
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -130,6 +132,21 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as exc:
         logger.warning("[WS] Unexpected error, disconnecting: %s", exc)
         manager.disconnect(websocket)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Static HTML pages
+# ─────────────────────────────────────────────────────────────────────────────
+@app.get("/", include_in_schema=False)
+async def root():
+    return FileResponse(os.path.join(_PROJECT_ROOT, "minecraft_trading_office.html"))
+
+@app.get("/minecraft_trading_office.html", include_in_schema=False)
+async def serve_minecraft_office():
+    return FileResponse(os.path.join(_PROJECT_ROOT, "minecraft_trading_office.html"))
+
+@app.get("/trading_command_center.html", include_in_schema=False)
+async def serve_trading_center():
+    return FileResponse(os.path.join(_PROJECT_ROOT, "trading_command_center.html"))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Health check — always public, required by Docker/K8s probes
