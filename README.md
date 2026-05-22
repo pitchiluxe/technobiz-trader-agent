@@ -4,8 +4,12 @@
 
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)]()
-[![Framework](https://img.shields.io/badge/Framework-Microsoft%20Agent%20Framework-0078d4)]()
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black)](https://technobiz-trader-agent.vercel.app)
 [![License](https://img.shields.io/badge/License-Proprietary-red)]()
+
+![TechnobizTrader Agency — Minecraft-style trading office UI](docs/preview.png)
+
+> **Live Demo:** https://technobiz-trader-agent.vercel.app
 
 ---
 
@@ -45,7 +49,7 @@
 
 ```bash
 # 1. Clone and setup
-git clone https://github.com/your-org/TechnobizTrader.git
+git clone https://github.com/pitchiluxe/technobiz-trader-agent.git
 cd TechnobizTrader
 python -m venv venv
 source venv/bin/activate
