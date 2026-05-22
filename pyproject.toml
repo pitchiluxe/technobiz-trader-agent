@@ -25,14 +25,25 @@ classifiers = [
 ]
 
 dependencies = [
-    "agent-framework-core==1.0.0rc6",
-    "agent-framework-foundry==1.0.0rc6",
-    "azure-ai-agentserver-agentframework==1.0.0b16",
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.0.0",
+    "sse-starlette>=1.6.5",
+    "python-multipart>=0.0.9",
+    "starlette>=0.27.0",
+    "httpx>=0.25.0",
+    "requests>=2.31.0",
+    "anthropic>=0.25.0",
+    "websockets>=12.0",
     "pandas>=2.0.0",
     "numpy>=1.24.0",
     "sqlalchemy>=2.0.0",
-    "fastapi>=0.104.0",
+    "psycopg2-binary>=2.9.9",
     "python-dotenv>=1.0.0",
+    "python-dateutil>=2.8.2",
+    "pytz>=2023.3",
+    "Pillow>=10.0.0",
+    "python-json-logger>=2.0.7",
 ]
 
 [project.urls]
