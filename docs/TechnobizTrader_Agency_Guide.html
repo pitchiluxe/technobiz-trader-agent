@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TechnobizTrader – Agency Operation Guide</title>
+<style>
+  /* ── General ── */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 13px;
+    color: #1a1a2e;
+    background: #f4f6fb;
+    line-height: 1.6;
+  }
+
+  /* ── Cover page ── */
+  .cover {
+    background: linear-gradient(145deg, #0f3460 0%, #16213e 60%, #0d1b2a 100%);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 60px 40px;
+    page-break-after: always;
+  }
+  .cover .logo-box {
+    width: 110px; height: 110px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #e94560 0%, #f5a623 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 48px; margin: 0 auto 28px;
+    box-shadow: 0 12px 40px rgba(233,69,96,0.45);
+  }
+  .cover h1 { font-size: 42px; font-weight: 800; letter-spacing: -1px; margin-bottom: 8px; }
+  .cover .sub { font-size: 18px; opacity: 0.75; margin-bottom: 36px; }
+  .cover .badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 30px;
+    padding: 6px 22px;
+    font-size: 13px; letter-spacing: 1px;
+    margin: 4px;
+  }
+  .cover .meta { margin-top: 48px; opacity: 0.55; font-size: 12px; }
+
+  /* ── Section pages ── */
+  .page {
+    max-width: 900px;
+    margin: 48px auto;
+    background: #fff;
+    border-radius: 16px;
+    padding: 48px 56px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+    page-break-after: always;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  h2 {
+    font-size: 22px; font-weight: 700;
+    color: #0f3460;
+    border-bottom: 3px solid #e94560;
+    padding-bottom: 10px;
+    margin-bottom: 28px;
+  }
+  h3 { font-size: 15px; font-weight: 700; color: #16213e; margin: 22px 0 10px; }
+  p { margin-bottom: 12px; }
+
+  /* ── Architecture pipeline ── */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin: 32px 0;
+    overflow-x: auto;
+  }
+  .pipe-block {
+    flex: 1;
+    background: #0f3460;
+    color: #fff;
+    border-radius: 14px;
+    padding: 24px 18px;
+    text-align: center;
+    position: relative;
+    min-width: 150px;
+  }
+  .pipe-block.green  { background: linear-gradient(135deg,#1a7340,#27ae60); }
+  .pipe-block.blue   { background: linear-gradient(135deg,#0f3460,#1565c0); }
+  .pipe-block.purple { background: linear-gradient(135deg,#5c1a8a,#8e44ad); }
+  .pipe-block.red    { background: linear-gradient(135deg,#b71c1c,#e94560); }
+  .pipe-block.gray   { background: linear-gradient(135deg,#37474f,#546e7a); }
+  .pipe-block .icon { font-size: 32px; margin-bottom: 8px; }
+  .pipe-block .title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pipe-block .desc  { font-size: 11px; opacity: 0.8; margin-top: 6px; }
+  .pipe-block .output-tag {
+    position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%);
+    background: #e94560; color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 10px; border-radius: 10px;
+    white-space: nowrap;
+  }
+  .pipe-arrow {
+    display: flex; align-items: center; justify-content: center;
+    width: 44px; flex-shrink: 0;
+    color: #e94560; font-size: 22px; font-weight: 900;
+    padding-top: 14px;
+  }
+
+  /* ── Step cards ── */
+  .steps { counter-reset: step-counter; }
+  .step-card {
+    display: flex;
+    gap: 20px;
+    background: #f8f9ff;
+    border: 1px solid #e0e4f0;
+    border-left: 5px solid #0f3460;
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin-bottom: 18px;
+    page-break-inside: avoid;
+  }
+  .step-card.green  { border-left-color: #27ae60; }
+  .step-card.blue   { border-left-color: #1565c0; }
+  .step-card.purple { border-left-color: #8e44ad; }
+  .step-card.red    { border-left-color: #e94560; }
+  .step-num {
+    width: 40px; height: 40px; flex-shrink: 0;
+    border-radius: 50%;
+    background: #0f3460; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 800;
+  }
+  .step-card.green  .step-num { background: #27ae60; }
+  .step-card.blue   .step-num { background: #1565c0; }
+  .step-card.purple .step-num { background: #8e44ad; }
+  .step-card.red    .step-num { background: #e94560; }
+  .step-body h4 { font-size: 14px; font-weight: 700; margin-bottom: 5px; }
+  .step-body ul { padding-left: 18px; font-size: 12px; }
+  .step-body ul li { margin-bottom: 3px; }
+
+  /* ── Timeline ── */
+  .timeline { position: relative; padding-left: 40px; margin: 24px 0; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 14px; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(to bottom, #0f3460, #e94560);
+    border-radius: 2px;
+  }
+  .tl-item {
+    position: relative;
+    margin-bottom: 22px;
+    page-break-inside: avoid;
+  }
+  .tl-dot {
+    position: absolute;
+    left: -33px; top: 2px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #0f3460;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 2px #0f3460;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 10px; font-weight: 700;
+  }
+  .tl-dot.trade { background: #27ae60; box-shadow: 0 0 0 2px #27ae60; }
+  .tl-dot.warn  { background: #f5a623; box-shadow: 0 0 0 2px #f5a623; }
+  .tl-dot.skip  { background: #546e7a; box-shadow: 0 0 0 2px #546e7a; }
+  .tl-time {
+    font-size: 11px; font-weight: 700; color: #0f3460;
+    margin-bottom: 2px;
+  }
+  .tl-title { font-size: 13px; font-weight: 700; }
+  .tl-detail { font-size: 12px; color: #555; margin-top: 3px; }
+  .tl-badges { margin-top: 5px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge-sm {
+    font-size: 10px; padding: 2px 9px; border-radius: 10px;
+    font-weight: 700;
+  }
+  .badge-sm.green  { background: #d5f5e3; color: #1a7340; }
+  .badge-sm.blue   { background: #d6eaf8; color: #1565c0; }
+  .badge-sm.purple { background: #e8daef; color: #6c3483; }
+  .badge-sm.red    { background: #fadbd8; color: #922b21; }
+  .badge-sm.gray   { background: #eaecee; color: #555; }
+  .badge-sm.orange { background: #fdebd0; color: #784212; }
+
+  /* ── Guard rail boxes ── */
+  .guard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .guard-box {
+    background: #f8f9ff;
+    border: 1px solid #dde2f0;
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .guard-box h4 {
+    font-size: 13px; font-weight: 700;
+    color: #0f3460; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .guard-box ul { padding-left: 16px; font-size: 11.5px; }
+  .guard-box ul li { margin-bottom: 3px; }
+
+  /* ── ICT table ── */
+  .ict-table {
+    width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12px;
+  }
+  .ict-table th {
+    background: #0f3460; color: #fff;
+    padding: 10px 14px; text-align: left;
+    font-size: 12px;
+  }
+  .ict-table td { padding: 9px 14px; border-bottom: 1px solid #eee; vertical-align: top; }
+  .ict-table tr:nth-child(even) td { background: #f8f9ff; }
+  .ict-table .pass { color: #1a7340; font-weight: 700; }
+  .ict-table .fail { color: #922b21; font-weight: 700; }
+
+  /* ── Decision tree ── */
+  .dtree {
+    font-size: 12px;
+    line-height: 2;
+    background: #0d1b2a;
+    color: #e2e8f0;
+    border-radius: 10px;
+    padding: 24px 28px;
+    font-family: 'Courier New', monospace;
+    margin: 20px 0;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .dtree .grn { color: #4ade80; }
+  .dtree .red { color: #f87171; }
+  .dtree .yel { color: #fbbf24; }
+  .dtree .blu { color: #60a5fa; }
+  .dtree .cyn { color: #22d3ee; }
+
+  /* ── KPI grid ── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 20px 0; }
+  .kpi-card {
+    background: linear-gradient(135deg, #0f3460, #1565c0);
+    color: #fff;
+    border-radius: 12px;
+    padding: 20px 18px;
+    text-align: center;
+  }
+  .kpi-card .kpi-val { font-size: 28px; font-weight: 800; }
+  .kpi-card .kpi-label { font-size: 11px; opacity: 0.8; margin-top: 4px; }
+  .kpi-card.green-card { background: linear-gradient(135deg,#1a7340,#27ae60); }
+  .kpi-card.orange-card { background: linear-gradient(135deg,#7d4e00,#f5a623); }
+  .kpi-card.purple-card { background: linear-gradient(135deg,#5c1a8a,#8e44ad); }
+
+  /* ── Print ── */
+  @media print {
+    body { background: #fff; font-size: 12px; }
+    .page { margin: 0; border-radius: 0; box-shadow: none; padding: 36px 48px; }
+    .cover { page-break-after: always; min-height: auto; padding: 80px 40px; }
+    @page { size: A4; margin: 10mm 12mm; }
+  }
+
+  /* ── Misc ── */
+  .note-box {
+    background: #fffbeb;
+    border: 1px solid #f5a623;
+    border-left: 4px solid #f5a623;
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 12px;
+    margin: 16px 0;
+  }
+  .divider { height: 2px; background: linear-gradient(to right, #0f3460, transparent); margin: 28px 0; }
+  table.pos-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:12px; }
+  table.pos-table th { background:#0f3460; color:#fff; padding:8px 12px; text-align:left; }
+  table.pos-table td { padding:8px 12px; border-bottom:1px solid #eee; }
+  table.pos-table tr:nth-child(even) td { background:#f8f9ff; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ COVER ══ -->
+<div class="cover">
+  <div class="logo-box">📈</div>
+  <h1>TechnobizTrader</h1>
+  <div class="sub">Multi-Agent AI Trading Agency — Operation Guide</div>
+  <div>
+    <span class="badge">ICT Methodology</span>
+    <span class="badge">3-Agent Pipeline</span>
+    <span class="badge">2-Hour Walkthrough</span>
+  </div>
+  <br>
+  <div>
+    <span class="badge">Python 3.10+</span>
+    <span class="badge">Microsoft Agent Framework v1.0.0rc6</span>
+    <span class="badge">MetaTrader 5</span>
+  </div>
+  <div class="meta">Version 1.0 &nbsp;|&nbsp; April 22, 2026 &nbsp;|&nbsp; Confidential</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ PAGE 1 ══ -->
+<div class="page">
+  <h2>1. What Is TechnobizTrader?</h2>
+
+  <p>TechnobizTrader is an <strong>autonomous AI trading agency</strong> composed of three specialised
+  agents that work in a strict sequential pipeline. Each agent has one job, one input, and one
+  output. They never skip steps or bypass each other's validation.</p>
+
+  <p>The strategy is <strong>ICT (Inner Circle Trading)</strong> — a methodology developed by
+  Michael S. that identifies institutional order-flow through four specific market events before
+  entering any trade.</p>
+
+  <!-- Pipeline diagram -->
+  <div class="pipeline">
+    <div class="pipe-block gray">
+      <div class="icon">🌐</div>
+      <div class="title">MT5 Provider</div>
+      <div class="desc">Live OHLC data<br>Daily · 4H · 1H</div>
+      <div class="output-tag">OHLCData[]</div>
+    </div>
+    <div class="pipe-arrow">▶</div>
+    <div class="pipe-block green">
+      <div class="icon">🔭</div>
+      <div class="title">TREND-MASTER</div>
+      <div class="desc">Multi-timeframe<br>structure analysis</div>
+      <div class="output-tag">TrendReport</div>
+    </div>
+    <div class="pipe-arrow">▶</div>
+    <div class="pipe-block blue">
+      <div class="icon">🔍</div>
+      <div class="title">ANALYSE-MASTER</div>
+      <div class="desc">ICT pattern<br>detection</div>
+      <div class="output-tag">TradeSignal</div>
+    </div>
+    <div class="pipe-arrow">▶</div>
+    <div class="pipe-block purple">
+      <div class="icon">⚡</div>
+      <div class="title">TRADER-MASTER</div>
+      <div class="desc">Risk management<br>+ execution</div>
+      <div class="output-tag">ExecutionRecord</div>
+    </div>
+    <div class="pipe-arrow">▶</div>
+    <div class="pipe-block red">
+      <div class="icon">🗄️</div>
+      <div class="title">DATABASE</div>
+      <div class="desc">SQLite / PostgreSQL<br>Full audit trail</div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong>Key principle:</strong> If any agent returns <code>None</code>, the entire cycle stops
+    immediately and no trade is placed. The system <em>prefers not trading</em> over trading on weak
+    signals.
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>The Four Mandatory ICT Elements</h3>
+  <p>Analyse-Master requires <strong>ALL four</strong> of the following before generating any signal:</p>
+
+  <table class="ict-table">
+    <tr>
+      <th>#</th><th>ICT Element</th><th>What It Means</th><th>What the Code Looks For</th>
+    </tr>
+    <tr>
+      <td><strong>1</strong></td>
+      <td><strong>Liquidity Sweep</strong></td>
+      <td>Retail stop-orders are triggered beyond a swing level, then price reverses — smart money collected liquidity.</td>
+      <td>A wick that breaks a key swing high/low by ≥ 2 pips but the candle <em>closes back</em> inside the level.</td>
+    </tr>
+    <tr>
+      <td><strong>2</strong></td>
+      <td><strong>Break of Structure (BoS)</strong></td>
+      <td>Price closes beyond the prior swing point, confirming a directional shift or continuation.</td>
+      <td>Most-recent close above the 2nd-to-last swing high (bullish) or below the 2nd-to-last swing low (bearish).</td>
+    </tr>
+    <tr>
+      <td><strong>3</strong></td>
+      <td><strong>Imbalance / Order Block</strong></td>
+      <td>An unfilled price gap (Fair Value Gap) or the last opposing candle before an impulse — institutional entry zone.</td>
+      <td>3-candle FVG: <code>prev.high &lt; next.low</code>. OB: last bearish candle before a 3-candle bullish impulse (or vice versa).</td>
+    </tr>
+    <tr>
+      <td><strong>4</strong></td>
+      <td><strong>Pullback Entry</strong></td>
+      <td>Price retraces into the Order Block / FVG zone, giving a low-risk entry aligned with institutional bias.</td>
+      <td>Current candle's wick touching or entering the OB/FVG zone (within ± 3 pip buffer).</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ PAGE 2 ══ -->
+<div class="page">
+  <h2>2. Step-by-Step: One Trading Cycle (≈ 15 minutes)</h2>
+  <p>The system runs a <strong>trading cycle every 15 minutes</strong>. Here is every internal step
+  in the exact order the code executes them.</p>
+
+  <!-- INIT -->
+  <h3>Phase 0 — System Initialisation (one-time at startup)</h3>
+  <div class="steps">
+    <div class="step-card">
+      <div class="step-num">0</div>
+      <div class="step-body">
+        <h4>Load Configuration</h4>
+        <ul>
+          <li>Read <code>.env</code> file → <code>config/settings.py</code> singleton</li>
+          <li>Load MT5 credentials: account, password, server</li>
+          <li>Set risk params: MAX_RISK=2%, MAX_TRADES=3, MIN_CONFIDENCE=75%</li>
+          <li>Connect to SQLite / PostgreSQL database</li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card green">
+      <div class="step-num" style="background:#27ae60">A</div>
+      <div class="step-body">
+        <h4>MT5 Terminal Connection</h4>
+        <ul>
+          <li>Call <code>mt5.initialize()</code> to start the terminal bridge</li>
+          <li>Call <code>mt5.login(account, password, server)</code></li>
+          <li>Verify account balance and currency via <code>mt5.account_info()</code></li>
+          <li>If connection fails → abort startup, log error</li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card blue">
+      <div class="step-num" style="background:#1565c0">B</div>
+      <div class="step-body">
+        <h4>Instantiate All Three Agents</h4>
+        <ul>
+          <li><code>TrendMaster(verbose=False)</code></li>
+          <li><code>AnalyseMaster(verbose=False)</code></li>
+          <li><code>TraderMaster(verbose=False)</code></li>
+          <li><code>TradingWorkflow</code> orchestrator wraps all three</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- CYCLE -->
+  <h3>Phase 1 — Data Fetch (every cycle)</h3>
+  <div class="steps">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Pull Live OHLC Data from MT5</h4>
+        <ul>
+          <li>Daily candles: <code>mt5.copy_rates_from_pos("EURUSD", TIMEFRAME_D1, 0, 200)</code></li>
+          <li>4-Hour candles: <code>mt5.copy_rates_from_pos("EURUSD", TIMEFRAME_H4, 0, 200)</code></li>
+          <li>1-Hour candles: <code>mt5.copy_rates_from_pos("EURUSD", TIMEFRAME_H1, 0, 200)</code></li>
+          <li>Each raw row is converted to <code>OHLCData(timestamp, open, high, low, close, volume)</code></li>
+          <li>Result is stored as <code>market_data = {"daily": [...], "4h": [...], "1h": [...]}</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>Phase 2 — TREND-MASTER Analysis (Step 1 of pipeline)</h3>
+  <div class="steps">
+    <div class="step-card green">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>Multi-Timeframe Swing Detection</h4>
+        <ul>
+          <li>Run <code>_find_swing_highs(candles, window=5)</code> on Daily, 4H, 1H</li>
+          <li>Run <code>_find_swing_lows(candles, window=5)</code> on all three timeframes</li>
+          <li>Rolling window: if <code>candle[i].high</code> beats all neighbours ±5 candles → swing high</li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card green">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>Market Structure Classification</h4>
+        <ul>
+          <li>Check last 3 swing highs and lows per timeframe</li>
+          <li>Highs and lows both ascending → <strong class="pass">BULLISH</strong></li>
+          <li>Highs and lows both descending → <strong class="fail">BEARISH</strong></li>
+          <li>Mixed or insufficient swings → <strong>NEUTRAL</strong></li>
+          <li>Final bias = majority vote across all 3 timeframes</li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card green">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>Support / Resistance Level Validation</h4>
+        <ul>
+          <li>Collect all swing highs/lows from Daily + 4H (higher-weight data)</li>
+          <li>For each candidate level: count how many candles touched it (within 5 pip tolerance)</li>
+          <li>Only include levels with <strong>≥ 2 historical touches</strong></li>
+          <li>Deduplicate levels that are within 15 pips of each other</li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card green">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4>ATR Volatility Check &amp; Confidence Scoring</h4>
+        <ul>
+          <li>ATR(14) = average true range of last 14 one-hour candles</li>
+          <li>If current ATR &gt; long-term ATR × 1.5 → risk level = HIGH (−10% confidence)</li>
+          <li>Base confidence: 60 + 10 (all 3 TFs agree) + 10 (≥3 S/R levels) − 10 (high vol)</li>
+          <li>Output: <code>TrendReport</code> with bias, confidence, S/R levels, liquidity zones</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong>Stop condition:</strong> If Trend-Master returns <code>None</code> (insufficient candles,
+    NEUTRAL bias, or HIGH risk), the cycle ends here. No signal is generated, no trade is placed.
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ PAGE 3 ══ -->
+<div class="page">
+  <h2>3. Step-by-Step Continued — Analyse-Master &amp; Trader-Master</h2>
+
+  <h3>Phase 3 — ANALYSE-MASTER ICT Detection (Step 2 of pipeline)</h3>
+  <div class="steps">
+    <div class="step-card blue">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h4>ICT Element 1 — Liquidity Sweep Detection</h4>
+        <ul>
+          <li>Scan last 5 one-hour candles</li>
+          <li><em>Bullish:</em> any candle's low dips &gt; 2 pips below the lowest swing low, but <strong>closes above it</strong></li>
+          <li><em>Bearish:</em> any candle's high pokes &gt; 2 pips above the highest swing high, but <strong>closes below it</strong></li>
+          <li>Result: <code>sweep_ok = True/False</code>, stores the swept price level</li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card blue">
+      <div class="step-num">7</div>
+      <div class="step-body">
+        <h4>ICT Element 2 — Break of Structure</h4>
+        <ul>
+          <li><em>Bullish BoS:</em> latest close &gt; 2nd-to-last swing high → confirms upward momentum</li>
+          <li><em>Bearish BoS:</em> latest close &lt; 2nd-to-last swing low → confirms downward momentum</li>
+          <li>Must align with the bias from Trend-Master</li>
+          <li>Result: <code>bos_ok = True/False</code></li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card blue">
+      <div class="step-num">8</div>
+      <div class="step-body">
+        <h4>ICT Element 3 — Imbalance / Order Block</h4>
+        <ul>
+          <li><strong>Fair Value Gap (FVG):</strong> search last 20 candles for a 3-candle gap
+              (<code>prev.high &lt; next.low</code> for bullish)</li>
+          <li><strong>Order Block (OB):</strong> last opposing candle before a 3-candle impulse
+              (e.g. last bearish candle before 3 bullish candles with total body ≥ 5 pips)</li>
+          <li>OB is preferred over FVG; FVG used as fallback</li>
+          <li>Zone is recorded as <code>(ob_bottom, ob_top)</code></li>
+          <li>Result: <code>imbalance_ok = True/False</code></li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card blue">
+      <div class="step-num">9</div>
+      <div class="step-body">
+        <h4>ICT Element 4 — Pullback Entry</h4>
+        <ul>
+          <li>Check if the <em>current (latest) candle</em> has a wick touching or inside the OB/FVG zone</li>
+          <li><em>Bullish:</em> current low ≤ ob_top + 3 pip buffer AND ≥ ob_bottom − 3 pip buffer</li>
+          <li><em>Bearish:</em> current high ≥ ob_bottom − 3 pip buffer AND ≤ ob_top + 3 pip buffer</li>
+          <li>Result: <code>pullback_ok = True/False</code></li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card blue">
+      <div class="step-num">10</div>
+      <div class="step-body">
+        <h4>Risk/Reward Calculation &amp; Signal Construction</h4>
+        <ul>
+          <li>Entry = midpoint of OB zone: <code>(ob_bottom + ob_top) / 2</code></li>
+          <li>Stop Loss = OB edge + 3 pip buffer (beyond the zone)</li>
+          <li>TP1 = entry ± 1× risk &nbsp;|&nbsp; TP2 = entry ± 2× risk &nbsp;|&nbsp; TP3 = entry ± 3× risk</li>
+          <li>R:R ratio calculated on TP2 — must be <strong>≥ 2.0</strong></li>
+          <li>Confidence score = 50 + (15 × confirmed elements) + 5 (if R:R ≥ 3) × trend_confidence%</li>
+          <li>Kill zone: now → now + 30 minutes</li>
+          <li>Output: <code>TradeSignal</code> or <code>None</code> if any check fails</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>Phase 4 — TRADER-MASTER Execution (Step 3 of pipeline)</h3>
+  <div class="steps">
+    <div class="step-card purple">
+      <div class="step-num">11</div>
+      <div class="step-body">
+        <h4>Pre-Execution Guardrail Checks</h4>
+        <ul>
+          <li>Confidence ≥ 75% → else <strong class="fail">REJECT</strong></li>
+          <li>R:R ≥ 2.0 → else <strong class="fail">REJECT</strong></li>
+          <li>Active open trades &lt; 3 → else <strong class="fail">REJECT</strong></li>
+          <li>Daily drawdown &lt; 5% → else <strong class="fail">PAUSE</strong></li>
+          <li>Kill zone not expired → else <strong class="fail">REJECT</strong></li>
+          <li>3 consecutive losses → <strong class="pass">ALLOW but halve lot size</strong></li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card purple">
+      <div class="step-num">12</div>
+      <div class="step-body">
+        <h4>Dynamic Position Sizing (2% Risk Rule)</h4>
+        <ul>
+          <li><strong>Formula:</strong><br>
+              <code>risk_pips = |entry − stop_loss| ÷ 0.0001</code><br>
+              <code>max_risk_$ = account_balance × 0.02</code><br>
+              <code>lots = max_risk_$ ÷ (risk_pips × $10/pip)</code></li>
+          <li>Clamped to 0.01 (min) and 10.0 (max) lots</li>
+          <li>Example: $10 000 balance, 20-pip SL → max risk $200, lots = 200/(20×10) = <strong>1.0 lot</strong></li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card purple">
+      <div class="step-num">13</div>
+      <div class="step-body">
+        <h4>Order Placement &amp; Record Creation</h4>
+        <ul>
+          <li>Generate unique signal ID: <code>SIG-{8-char UUID hex}</code></li>
+          <li>Place limit order via <code>mt5.order_send()</code> with SL and TP1</li>
+          <li>Status set to <strong>PENDING</strong> until filled</li>
+          <li>Create <code>ExecutionRecord</code> with all three TP levels logged</li>
+          <li>Record appended to <code>TradingWorkflow.execution_records</code></li>
+          <li>Full row saved to <code>TradeExecution</code> database table</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ PAGE 4 ══ -->
+<div class="page">
+  <h2>4. Decision Flow — Complete Logic Tree</h2>
+  <p>The following diagram shows exactly which code path is taken at every decision point
+  during one trading cycle.</p>
+
+  <div class="dtree"><span class="cyn">TRADING CYCLE START</span>
+│
+├─ Fetch OHLC: Daily · 4H · 1H via mt5.copy_rates_from_pos()
+│   └─ [empty data] ──────────────────────────────────────── <span class="red">ABORT CYCLE</span>
+│
+├─ <span class="grn">TREND-MASTER</span>.analyze(market_data)
+│   ├─ Swing detection (window=5) on all 3 timeframes
+│   ├─ Market structure: HH+HL? → BULLISH / LH+LL? → BEARISH / else → NEUTRAL
+│   ├─ S/R levels: ≥2 historical touches required
+│   ├─ ATR(14) volatility check
+│   ├─ Confidence scoring (base 60 ± adjustments)
+│   │
+│   ├─ [insufficient candles OR data error] ──────────────── <span class="red">STOP → None</span>
+│   └─ TrendReport(bias, confidence, S/R, swing_structure, risk_level)
+│       └─ [risk_level == "HIGH"] ───────────────────────── <span class="yel">SKIP ANALYSE</span>
+│       └─ [bias == "NEUTRAL"] ──────────────────────────── <span class="yel">SKIP ANALYSE</span>
+│
+├─ <span class="blu">ANALYSE-MASTER</span>.analyze(trend_report, candle_data=market_data)
+│   ├─ Liquidity sweep: wick beyond swing ± closes inside?
+│   │   └─ [NO] ───────────── sweep_ok=False
+│   ├─ Break of Structure: close beyond prev swing level?
+│   │   └─ [NO] ───────────── bos_ok=False
+│   ├─ Imbalance/OB: FVG gap or opposing OB before impulse?
+│   │   └─ [NO] ───────────── imbalance_ok=False
+│   ├─ Pullback: current candle touching OB zone?
+│   │   └─ [NO] ───────────── pullback_ok=False
+│   │
+│   ├─ [ANY element = False] ────────────────────────────── <span class="red">SIGNAL REJECTED → None</span>
+│   ├─ Calculate levels: entry, SL, TP1/2/3
+│   ├─ R:R on TP2 ≥ 2.0? → [NO] ──────────────────────── <span class="red">REJECTED → None</span>
+│   ├─ Confidence ≥ 75%?  → [NO] ──────────────────────── <span class="red">REJECTED → None</span>
+│   └─ TradeSignal(entry, SL, TP1/2/3, R:R, confidence, kill_zone)
+│
+├─ <span class="yel">TRADER-MASTER</span>.analyze(trade_signal)
+│   ├─ Confidence ≥ 75%?           → [NO] ─────────────── <span class="red">REJECTED → None</span>
+│   ├─ R:R ≥ 2.0?                  → [NO] ─────────────── <span class="red">REJECTED → None</span>
+│   ├─ Open trades &lt; 3?            → [NO] ─────────────── <span class="red">REJECTED → None</span>
+│   ├─ Daily drawdown &lt; 5%?        → [NO] ─────────────── <span class="yel">PAUSE TRADING</span>
+│   ├─ Within kill zone window?     → [NO] ─────────────── <span class="red">REJECTED → None</span>
+│   ├─ Consecutive losses ≥ 3?      → [YES] ────────────── <span class="yel">size × 0.5</span>
+│   │
+│   ├─ Calculate lots = (balance × 2%) / (risk_pips × $10)
+│   ├─ Generate signal ID: SIG-{uuid8}
+│   └─ ExecutionRecord(PENDING, entry, SL, TP1/2/3, lots)
+│
+└─ <span class="grn">CYCLE COMPLETE ✓</span>   ExecutionRecord returned → saved to DB</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ PAGE 5 ══ -->
+<div class="page">
+  <h2>5. Two-Hour Live Operation Timeline (8 Cycles)</h2>
+  <p>The system runs one cycle every <strong>15 minutes</strong>. Over 2 hours that is
+  <strong>8 complete cycles</strong>. The timeline below walks through a realistic example
+  on EURUSD starting at <strong>09:00 London time</strong> (peak liquidity session).</p>
+
+  <div class="note-box">
+    <strong>Session context:</strong> London open (08:00–12:00 UTC) is the highest-volume
+    forex window. ICT kill zones align with institutional order-flow surges at
+    08:00, 09:30, and 12:00 UTC.
+  </div>
+
+  <div class="timeline">
+
+    <!-- Cycle 1 -->
+    <div class="tl-item">
+      <div class="tl-dot">1</div>
+      <div class="tl-time">09:00 — Cycle 1 (15 min)</div>
+      <div class="tl-title">Initialisation + First Trend Read</div>
+      <div class="tl-detail">
+        MT5 connection established. 200 daily, 200 × 4H, 200 × 1H candles pulled.
+        Trend-Master detects HH/HL structure on all 3 timeframes → BULLISH.
+        Confidence = 70% (only 2 validated S/R levels). Passes to Analyse-Master.
+        Analyse-Master finds FVG but <strong>no liquidity sweep</strong> in last 5 candles → Signal rejected.
+      </div>
+      <div class="tl-badges">
+        <span class="badge-sm blue">Trend: BULLISH 70%</span>
+        <span class="badge-sm gray">No Sweep → SKIP</span>
+      </div>
+    </div>
+
+    <!-- Cycle 2 -->
+    <div class="tl-item">
+      <div class="tl-dot skip">2</div>
+      <div class="tl-time">09:15 — Cycle 2</div>
+      <div class="tl-title">Trend Unchanged — Still Scanning</div>
+      <div class="tl-detail">
+        New 1H candle closes. Trend-Master confirms BULLISH with same S/R levels.
+        Analyse-Master: sweep <strong>still absent</strong>. BoS detected above 1.0820.
+        Imbalance zone identified at 1.0800–1.0812. Missing pullback — no signal.
+      </div>
+      <div class="tl-badges">
+        <span class="badge-sm blue">Trend: BULLISH 70%</span>
+        <span class="badge-sm orange">BoS ✓ · FVG ✓ · Sweep ✗ · Pullback ✗</span>
+        <span class="badge-sm gray">SKIP</span>
+      </div>
+    </div>
+
+    <!-- Cycle 3 -->
+    <div class="tl-item">
+      <div class="tl-dot warn">3</div>
+      <div class="tl-time">09:30 — Cycle 3 (London Killzone)</div>
+      <div class="tl-title">Liquidity Sweep Detected — 3 of 4 Elements Confirmed</div>
+      <div class="tl-detail">
+        09:28 candle: a 12-pip wick dips below 1.0795 (swing low) then closes at 1.0802.
+        Liquidity sweep confirmed. BoS already valid. FVG zone 1.0800–1.0812 active.
+        Pullback: current candle low = 1.0803 → touches FVG top (1.0812 + 3 pip buffer) — <strong>barely misses</strong>.
+        Signal rejected — pullback incomplete.
+      </div>
+      <div class="tl-badges">
+        <span class="badge-sm green">Sweep ✓</span>
+        <span class="badge-sm green">BoS ✓</span>
+        <span class="badge-sm green">FVG ✓</span>
+        <span class="badge-sm red">Pullback ✗</span>
+        <span class="badge-sm gray">SKIP</span>
+      </div>
+    </div>
+
+    <!-- Cycle 4 -->
+    <div class="tl-item">
+      <div class="tl-dot trade">4</div>
+      <div class="tl-time">09:45 — Cycle 4 ★ TRADE SIGNAL</div>
+      <div class="tl-title">All 4 ICT Elements Confirmed — Trade Placed</div>
+      <div class="tl-detail">
+        09:43 candle low = 1.0805, entering the FVG zone (1.0800–1.0812) from above.
+        Pullback confirmed. All 4 elements present.
+        <br><br>
+        Entry = (1.0800 + 1.0812) / 2 = <strong>1.0806</strong><br>
+        Stop Loss = 1.0800 − 0.0003 = <strong>1.0797</strong> (9 pip stop)<br>
+        TP1 = 1.0806 + 0.0009 = <strong>1.0815</strong> (1:1)<br>
+        TP2 = 1.0806 + 0.0018 = <strong>1.0824</strong> (2:1)<br>
+        TP3 = 1.0806 + 0.0027 = <strong>1.0833</strong> (3:1)<br>
+        R:R on TP2 = 2.0 ✓ &nbsp;|&nbsp; Confidence = 81%<br><br>
+        Position size: $10,000 × 2% = $200 risk ÷ (9 pips × $10) = <strong>2.22 → 2.22 lots</strong><br>
+        Order: BUY LIMIT 2.22 EURUSD @ 1.0806, SL 1.0797, TP 1.0824<br>
+        Status: <strong>PENDING</strong>
+      </div>
+      <div class="tl-badges">
+        <span class="badge-sm green">Sweep ✓</span>
+        <span class="badge-sm green">BoS ✓</span>
+        <span class="badge-sm green">FVG ✓</span>
+        <span class="badge-sm green">Pullback ✓</span>
+        <span class="badge-sm blue">Confidence: 81%</span>
+        <span class="badge-sm orange">R:R 2.0</span>
+        <span class="badge-sm purple">2.22 lots placed</span>
+      </div>
+    </div>
+
+    <!-- Cycle 5 -->
+    <div class="tl-item">
+      <div class="tl-dot skip">5</div>
+      <div class="tl-time">10:00 — Cycle 5</div>
+      <div class="tl-title">Trade OPEN — Max Trades Not Yet Reached (1/3)</div>
+      <div class="tl-detail">
+        The limit order from cycle 4 was filled at 09:52 (slippage 0.0001 = 1 pip).
+        Trade status updated to <strong>OPEN</strong>. Price currently at 1.0814.
+        New cycle runs. Trend still BULLISH. Analyse-Master sees no new sweep setup.
+        Trader-Master has 1 open trade, below the maximum of 3. No new signal this cycle.
+      </div>
+      <div class="tl-badges">
+        <span class="badge-sm green">Trade OPEN @ 1.0807</span>
+        <span class="badge-sm blue">P&amp;L: +$0 unrealised</span>
+        <span class="badge-sm gray">No new signal</span>
+      </div>
+    </div>
+
+    <!-- Cycle 6 -->
+    <div class="tl-item">
+      <div class="tl-dot trade">6</div>
+      <div class="tl-time">10:15 — Cycle 6</div>
+      <div class="tl-title">TP2 Hit — Trade Closed at Target</div>
+      <div class="tl-detail">
+        Price moved up to 1.0824 (TP2). The MT5 server automatically closes
+        100% of the position at TP (since we set single TP on the order).
+        Exit price: <strong>1.0824</strong>.
+        P&amp;L = (1.0824 − 1.0807) × 22,200 units = <strong>+$377.40 profit</strong>.<br>
+        Exit reason: <strong>TP_HIT</strong>. Status: <strong>CLOSED</strong>.
+        Performance tracker updated: Win Rate = 1/1 = 100% (small sample). Daily P&amp;L: +$377.40.
+        Trader-Master: 0 open trades.
+      </div>
+      <div class="tl-badges">
+        <span class="badge-sm green">TP2 HIT ✓</span>
+        <span class="badge-sm green">+$377.40</span>
+        <span class="badge-sm blue">Win Rate: 100%</span>
+        <span class="badge-sm purple">0 open trades</span>
+      </div>
+    </div>
+
+    <!-- Cycle 7 -->
+    <div class="tl-item">
+      <div class="tl-dot">7</div>
+      <div class="tl-time">10:30 — Cycle 7</div>
+      <div class="tl-title">Trend Weakens — Confidence Drops</div>
+      <div class="tl-detail">
+        Daily ATR spikes to 1.55× average after a news event (EUR CPI data released).
+        Risk level = HIGH. Trend-Master outputs BULLISH but confidence = 58% (ATR penalty −10, only 1 S/R level tested).
+        Analyse-Master skips ICT scan when risk = HIGH.
+        Cycle ends with no signal. System waits for volatility to normalise.
+      </div>
+      <div class="tl-badges">
+        <span class="badge-sm orange">Risk: HIGH (ATR spike)</span>
+        <span class="badge-sm gray">Analyse-Master: SKIPPED</span>
+      </div>
+    </div>
+
+    <!-- Cycle 8 -->
+    <div class="tl-item">
+      <div class="tl-dot skip">8</div>
+      <div class="tl-time">10:45 — Cycle 8</div>
+      <div class="tl-title">System Stable — Scanning Resumes</div>
+      <div class="tl-detail">
+        ATR settles back to normal. Risk level = MEDIUM. Confidence = 72%.
+        Analyse-Master resumes scanning. Liquidity sweep found above 1.0840, BoS confirmed.
+        No imbalance zone identified on 1H. Signal rejected again.
+        System logs the near-miss for performance analysis.
+        2-hour session ends. Daily summary: 1 trade, 1 win, +$377.40, Win Rate = 100%.
+      </div>
+      <div class="tl-badges">
+        <span class="badge-sm blue">Risk: MEDIUM</span>
+        <span class="badge-sm orange">Sweep ✓ · BoS ✓ · Imbalance ✗</span>
+        <span class="badge-sm gray">No signal — Session End</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ PAGE 6 ══ -->
+<div class="page">
+  <h2>6. Risk Management Guardrails</h2>
+  <p>These rules are <strong>hard-coded</strong> into the agents. They cannot be overridden by
+  any signal, regardless of how high the confidence is.</p>
+
+  <div class="guard-grid">
+    <div class="guard-box">
+      <h4>🛡️ Per-Trade Rules</h4>
+      <ul>
+        <li>Maximum risk per trade: <strong>2%</strong> of account balance</li>
+        <li>Minimum R:R ratio: <strong>1:2</strong> (TP2 must be ≥ 2× the risk)</li>
+        <li>Hard stop loss is <strong>non-negotiable</strong> — always set on order</li>
+        <li>Limit order entry only (market order as fallback for high urgency)</li>
+        <li>Entry timeout: 5 minutes (unfilled limit orders cancelled)</li>
+      </ul>
+    </div>
+    <div class="guard-box">
+      <h4>📊 Portfolio Rules</h4>
+      <ul>
+        <li>Maximum <strong>3 concurrent</strong> open trades</li>
+        <li>Daily drawdown cap: <strong>5%</strong> → all trading paused</li>
+        <li>3 consecutive losses → position size <strong>halved</strong> for next 5 trades</li>
+        <li>No averaging down, no martingale, no pyramiding</li>
+        <li>15-minute minimum between signals</li>
+      </ul>
+    </div>
+    <div class="guard-box">
+      <h4>📡 Signal Quality Rules</h4>
+      <ul>
+        <li>Minimum signal confidence: <strong>75%</strong></li>
+        <li><strong>All 4 ICT elements</strong> must be confirmed simultaneously</li>
+        <li>Signal expires after <strong>30 minutes</strong> (kill zone end)</li>
+        <li>No signals when ATR &gt; average × 1.5 (extreme volatility)</li>
+        <li>NEUTRAL bias → no signal generated</li>
+      </ul>
+    </div>
+    <div class="guard-box">
+      <h4>⚙️ System Safeguards</h4>
+      <ul>
+        <li>MT5 connection verified before every data fetch</li>
+        <li>Any agent returning <code>None</code> stops the pipeline immediately</li>
+        <li>All executions written to database with full audit trail</li>
+        <li>Unique signal IDs: <code>SIG-{uuid8}</code> on every trade</li>
+        <li>Full exception catch-all in workflow orchestrator</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>Position Sizing Formula Illustrated</h3>
+  <table class="pos-table">
+    <tr>
+      <th>Account Balance</th><th>Risk %</th><th>Max Risk $</th><th>Stop Loss (pips)</th><th>Pip Value (1 lot)</th><th>Lot Size</th>
+    </tr>
+    <tr><td>$10,000</td><td>2%</td><td>$200</td><td>10 pips</td><td>$10</td><td><strong>2.00 lots</strong></td></tr>
+    <tr><td>$10,000</td><td>2%</td><td>$200</td><td>20 pips</td><td>$10</td><td><strong>1.00 lot</strong></td></tr>
+    <tr><td>$10,000</td><td>2%</td><td>$200</td><td>5 pips</td><td>$10</td><td><strong>4.00 lots</strong></td></tr>
+    <tr><td>$50,000</td><td>2%</td><td>$1,000</td><td>15 pips</td><td>$10</td><td><strong>6.67 lots</strong></td></tr>
+    <tr><td>$10,000</td><td>1% (after 3 losses)</td><td>$100</td><td>20 pips</td><td>$10</td><td><strong>0.50 lots</strong></td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ PAGE 7 ══ -->
+<div class="page">
+  <h2>7. Key Performance Targets &amp; System KPIs</h2>
+
+  <div class="kpi-grid">
+    <div class="kpi-card green-card">
+      <div class="kpi-val">≥ 60%</div>
+      <div class="kpi-label">Target Win Rate<br>(min 40%)</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val">1:2</div>
+      <div class="kpi-label">Minimum<br>Risk/Reward</div>
+    </div>
+    <div class="kpi-card orange-card">
+      <div class="kpi-val">&gt; 1.5</div>
+      <div class="kpi-label">Profit Factor<br>(Gross P / Gross L)</div>
+    </div>
+    <div class="kpi-card purple-card">
+      <div class="kpi-val">&lt; 15%</div>
+      <div class="kpi-label">False Signal Rate<br>(target)</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val">≤ 3</div>
+      <div class="kpi-label">Max Consecutive<br>Losses</div>
+    </div>
+    <div class="kpi-card green-card">
+      <div class="kpi-val">&lt; 5s</div>
+      <div class="kpi-label">Analysis Latency<br>(data → signal)</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2>8. Data Flow Summary</h2>
+  <p>The table below shows the exact data object passed between each component.</p>
+
+  <table class="ict-table">
+    <tr><th>From</th><th>To</th><th>Object</th><th>Key Fields</th></tr>
+    <tr>
+      <td>MT5 Terminal</td><td>All Agents</td><td><code>Dict[str, List[OHLCData]]</code></td>
+      <td><code>{"daily": [...], "4h": [...], "1h": [...]}</code></td>
+    </tr>
+    <tr>
+      <td>Trend-Master</td><td>Analyse-Master</td><td><code>TrendReport</code></td>
+      <td>bias, confidence, support_resistance, swing_structure, liquidity_levels, risk_level</td>
+    </tr>
+    <tr>
+      <td>Analyse-Master</td><td>Trader-Master</td><td><code>TradeSignal</code></td>
+      <td>entry_level, stop_loss, take_profit_1/2/3, risk_reward_ratio, confidence, pattern_elements, kill_zone_end</td>
+    </tr>
+    <tr>
+      <td>Trader-Master</td><td>Database + MT5</td><td><code>ExecutionRecord</code></td>
+      <td>signal_id, entry_price, position_size, status (PENDING/OPEN/CLOSED), p_and_l, slippage</td>
+    </tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <h2>9. Quick-Start Reference</h2>
+  <table class="pos-table">
+    <tr><th>Task</th><th>Command</th></tr>
+    <tr><td>Install dependencies</td><td><code>pip install -r requirements.txt</code></td></tr>
+    <tr><td>Configure credentials</td><td>Copy <code>.env.template</code> → <code>.env</code>, fill MT5 fields</td></tr>
+    <tr><td>Start the agency</td><td><code>python main.py</code></td></tr>
+    <tr><td>Debug mode (verbose logs)</td><td><code>DEBUG=True LOG_LEVEL=DEBUG python main.py</code></td></tr>
+    <tr><td>Run all tests</td><td><code>pytest tests/ -v</code></td></tr>
+    <tr><td>Check agent outputs</td><td>Logs show <code>[TREND-MASTER]</code>, <code>[ANALYSE-MASTER]</code>, <code>[TRADER-MASTER]</code> prefixes</td></tr>
+  </table>
+
+  <div class="note-box" style="margin-top:28px">
+    <strong>To save this as PDF:</strong> Open this file in any web browser (Chrome, Edge, Firefox).
+    Press <kbd>Ctrl + P</kbd> → select <strong>"Save as PDF"</strong> → click Save.
+    For best results use A4 paper size and set margins to "Minimum".
+  </div>
+
+  <div style="text-align:center; margin-top:40px; color:#999; font-size:11px;">
+    TechnobizTrader v1.0 &nbsp;·&nbsp; April 22, 2026 &nbsp;·&nbsp; ICT Methodology &nbsp;·&nbsp; Microsoft Agent Framework v1.0.0rc6
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ PAGE 10 — MT5 CONNECTION ══ -->
+<div class="page">
+  <h2>10. Connecting the Agent to MetaTrader 5 (MQL5)</h2>
+  <p>The agent communicates with MT5 through the official <strong>MetaTrader5 Python bridge</strong>.
+  The bridge runs on the <em>same Windows machine</em> as the MT5 terminal — the Python process
+  talks to the terminal over a local named pipe. No MQL5 script is needed.</p>
+
+  <div class="note-box">
+    <strong>Platform requirement:</strong> The <code>MetaTrader5</code> Python package only works on
+    <strong>Windows</strong>. For Linux/Mac hosting, you must run it inside a Windows VM or
+    Windows container (see Section 11 for VPS options).
+  </div>
+
+  <div class="divider"></div>
+  <h3>Step-by-Step: MT5 Connection Setup</h3>
+  <div class="steps">
+
+    <div class="step-card green">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Download &amp; Install MetaTrader 5 Terminal</h4>
+        <ul>
+          <li>Go to <strong>metatrader5.com</strong> or your broker's download page</li>
+          <li>Install the MT5 terminal (Windows .exe installer)</li>
+          <li>Open the terminal and log in to your <strong>live</strong> or <strong>demo</strong> account</li>
+          <li>Go to <strong>Tools → Options → Expert Advisors</strong> and tick:<br>
+              ✅ <em>Allow automated trading</em><br>
+              ✅ <em>Allow DLL imports</em><br>
+              ✅ <em>Allow WebRequests for listed URL</em></li>
+          <li>Leave the MT5 terminal <strong>open and logged in</strong> — the Python bridge needs it running</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-card green">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>Install the Python MetaTrader5 Package</h4>
+        <ul>
+          <li>Open PowerShell or Command Prompt in your project folder</li>
+          <li>Run: <code>pip install MetaTrader5</code></li>
+          <li>Verify install: <code>python -c "import MetaTrader5 as mt5; print(mt5.__version__)"</code></li>
+          <li>Expected output: a version number like <code>5.0.37</code></li>
+          <li>If you get an error, ensure you are on Python 3.10+ on <strong>Windows</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-card green">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>Configure Your Credentials in <code>.env</code></h4>
+        <ul>
+          <li>Copy <code>.env.template</code> → <code>.env</code> in the project root</li>
+          <li>Fill in the MT5 section:</li>
+        </ul>
+        <div class="dtree" style="font-size:11px; line-height:1.8; margin-top:8px; white-space:pre">
+<span class="cyn"># ── MetaTrader 5 Credentials ──────────────────────────</span>
+<span class="grn">MT5_ACCOUNT</span>=<span class="yel">12345678</span>          <span class="blu"># Your MT5 account number (integer)</span>
+<span class="grn">MT5_PASSWORD</span>=<span class="yel">YourPassword</span>    <span class="blu"># Your MT5 account password</span>
+<span class="grn">MT5_SERVER</span>=<span class="yel">ICMarkets-Demo</span>   <span class="blu"># Exact server name (copy from MT5 Login screen)</span>
+
+<span class="cyn"># ── Trading Parameters ────────────────────────────────</span>
+<span class="grn">MT5_SYMBOL</span>=<span class="yel">EURUSD</span>            <span class="blu"># Symbol to trade</span>
+<span class="grn">MAX_RISK_PER_TRADE</span>=<span class="yel">0.02</span>      <span class="blu"># 2% account risk per trade</span>
+<span class="grn">MAX_CONCURRENT_TRADES</span>=<span class="yel">3</span>     <span class="blu"># Max open positions</span>
+<span class="grn">MIN_CONFIDENCE_THRESHOLD</span>=<span class="yel">75</span> <span class="blu"># Minimum signal confidence %</span>
+
+<span class="cyn"># ── Database ──────────────────────────────────────────</span>
+<span class="grn">DATABASE_URL</span>=<span class="yel">sqlite:///trading.db</span>  <span class="blu"># SQLite (dev) or postgresql://...</span>
+
+<span class="cyn"># ── Azure AI Foundry (optional — enhances signal text) ─</span>
+<span class="grn">FOUNDRY_PROJECT_ENDPOINT</span>=<span class="yel">https://your-project.openai.azure.com/</span>
+<span class="grn">FOUNDRY_MODEL_DEPLOYMENT_NAME</span>=<span class="yel">gpt-4o</span></div>
+      </div>
+    </div>
+
+    <div class="step-card green">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>Find Your Exact Server Name</h4>
+        <ul>
+          <li>In MT5 terminal: top menu → <strong>File → Open Account</strong></li>
+          <li>The server name is shown next to your account, e.g. <code>ICMarkets-Demo02</code></li>
+          <li>Alternatively: bottom status bar of MT5 shows the server name</li>
+          <li>The name must be <strong>exact</strong> (case-sensitive) — typos cause silent login failure</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-card green">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4>Test the Connection Before First Run</h4>
+        <ul>
+          <li>Run the connection test script from the project root:</li>
+        </ul>
+        <div class="dtree" style="font-size:11px; line-height:1.8; margin-top:8px; white-space:pre">
+<span class="cyn"># Paste this into a Python console or save as test_mt5.py</span>
+<span class="yel">import</span> MetaTrader5 <span class="yel">as</span> mt5
+<span class="yel">from</span> dotenv <span class="yel">import</span> load_dotenv
+<span class="yel">import</span> os
+
+load_dotenv()
+
+<span class="yel">if</span> <span class="grn">not</span> mt5.initialize():
+    <span class="yel">print</span>(<span class="red">f"initialize() failed: {mt5.last_error()}"</span>)
+<span class="yel">else</span>:
+    ok = mt5.login(
+        login=<span class="grn">int</span>(os.getenv(<span class="red">"MT5_ACCOUNT"</span>)),
+        password=os.getenv(<span class="red">"MT5_PASSWORD"</span>),
+        server=os.getenv(<span class="red">"MT5_SERVER"</span>)
+    )
+    <span class="yel">if</span> ok:
+        info = mt5.account_info()
+        <span class="yel">print</span>(<span class="grn">f"✅ Connected! Balance: {info.balance} {info.currency}"</span>)
+        <span class="yel">print</span>(<span class="grn">f"   Server: {info.server} | Leverage: 1:{info.leverage}"</span>)
+    <span class="yel">else</span>:
+        <span class="yel">print</span>(<span class="red">f"❌ Login failed: {mt5.last_error()}"</span>)
+    mt5.shutdown()</div>
+        <ul style="margin-top:8px">
+          <li>Expected success output: <code style="color:#1a7340">✅ Connected! Balance: 10000.00 USD</code></li>
+          <li>Common errors and fixes — see table below</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-card green">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h4>Enable the Symbol in MT5 Market Watch</h4>
+        <ul>
+          <li>In MT5: right-click the <strong>Market Watch</strong> panel → <strong>Show All</strong></li>
+          <li>Find your symbol (e.g. EURUSD) and ensure it is checked/visible</li>
+          <li>If <code>mt5.copy_rates_from_pos("EURUSD", ...)</code> returns empty, the symbol is hidden</li>
+          <li>Also ensure <strong>Auto-Trading</strong> button (top toolbar) is green/enabled</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="divider"></div>
+  <h3>Common Connection Errors &amp; Fixes</h3>
+  <table class="ict-table">
+    <tr><th>Error</th><th>Cause</th><th>Fix</th></tr>
+    <tr>
+      <td><code>initialize() failed: (-10006, 'No IPC')</code></td>
+      <td>MT5 terminal is not running</td>
+      <td>Open MetaTrader 5 terminal and log in first</td>
+    </tr>
+    <tr>
+      <td><code>Login failed: (10013, 'No connection')</code></td>
+      <td>Wrong server name or no internet</td>
+      <td>Copy server name exactly from MT5 login screen</td>
+    </tr>
+    <tr>
+      <td><code>Login failed: (10006, 'Authorization failed')</code></td>
+      <td>Wrong account/password</td>
+      <td>Verify credentials in MT5 terminal directly</td>
+    </tr>
+    <tr>
+      <td><code>copy_rates_from_pos returns None</code></td>
+      <td>Symbol not in Market Watch</td>
+      <td>Right-click Market Watch → Show All → find symbol</td>
+    </tr>
+    <tr>
+      <td><code>ImportError: No module named 'MetaTrader5'</code></td>
+      <td>Package not installed or wrong Python</td>
+      <td><code>pip install MetaTrader5</code> in the correct venv</td>
+    </tr>
+    <tr>
+      <td><code>order_send failed: (10027, 'Autotrading disabled')</code></td>
+      <td>Auto-trading is turned off</td>
+      <td>Press the <strong>AutoTrading</strong> button in MT5 toolbar (must be green)</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ═════════════════════════════════════ PAGE 11 — RUN SYSTEM + 24/7 ══ -->
+<div class="page">
+  <h2>11. Running the Entire System — Step by Step</h2>
+  <p>Follow this checklist <strong>in order</strong> every time you start TechnobizTrader.</p>
+
+  <h3>Pre-Flight Checklist (do before every start)</h3>
+  <div class="guard-grid">
+    <div class="guard-box">
+      <h4>🖥️ Windows Machine</h4>
+      <ul>
+        <li>☐ MT5 terminal is open and logged in</li>
+        <li>☐ Auto-Trading button is <strong>green</strong></li>
+        <li>☐ Symbol visible in Market Watch</li>
+        <li>☐ Stable internet connection active</li>
+      </ul>
+    </div>
+    <div class="guard-box">
+      <h4>🐍 Python Environment</h4>
+      <ul>
+        <li>☐ Virtual environment activated</li>
+        <li>☐ <code>pip install -r requirements.txt</code> already done</li>
+        <li>☐ <code>.env</code> file exists with all credentials</li>
+        <li>☐ Database file or PostgreSQL reachable</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+  <h3>One-Time Setup (first run only)</h3>
+  <div class="steps">
+
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Clone / Copy Project &amp; Create Virtual Environment</h4>
+        <div class="dtree" style="font-size:11px; line-height:1.8; white-space:pre; margin-top:6px">
+<span class="cyn"># In PowerShell — from your project folder</span>
+cd G:\SSD_Files\Trading_Agent
+
+<span class="cyn"># Create virtual environment</span>
+python -m venv .venv
+
+<span class="cyn"># Activate it</span>
+.venv\Scripts\Activate.ps1
+
+<span class="cyn"># Install all dependencies</span>
+pip install -r requirements.txt</div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>Configure Environment Variables</h4>
+        <div class="dtree" style="font-size:11px; line-height:1.8; white-space:pre; margin-top:6px">
+<span class="cyn"># Copy the template</span>
+copy .env.template .env
+
+<span class="cyn"># Open .env in Notepad and fill all fields</span>
+notepad .env</div>
+        <ul style="margin-top:6px">
+          <li>Mandatory: <code>MT5_ACCOUNT</code>, <code>MT5_PASSWORD</code>, <code>MT5_SERVER</code></li>
+          <li>Optional: <code>FOUNDRY_PROJECT_ENDPOINT</code> (Azure AI — can leave blank for pure technical analysis)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>Initialise the Database</h4>
+        <div class="dtree" style="font-size:11px; line-height:1.8; white-space:pre; margin-top:6px">
+<span class="cyn"># Creates all tables (runs once — safe to re-run)</span>
+python -c "from database.db_manager import db_manager; db_manager.create_tables(); print('DB ready')"</div>
+        <ul style="margin-top:6px">
+          <li>Creates <code>trading.db</code> SQLite file (or connects to PostgreSQL if <code>DATABASE_URL</code> set)</li>
+          <li>Tables: <code>trend_analysis</code>, <code>trade_signals</code>, <code>trade_executions</code>, <code>performance_metrics</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>Test MT5 Connection</h4>
+        <div class="dtree" style="font-size:11px; line-height:1.8; white-space:pre; margin-top:6px">
+python -c "
+import MetaTrader5 as mt5, os
+from dotenv import load_dotenv
+load_dotenv()
+mt5.initialize()
+ok = mt5.login(int(os.getenv('MT5_ACCOUNT')), os.getenv('MT5_PASSWORD'), os.getenv('MT5_SERVER'))
+print('Connected!' if ok else f'FAILED: {mt5.last_error()}')
+mt5.shutdown()
+"</div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4>Run All Tests to Verify Setup</h4>
+        <div class="dtree" style="font-size:11px; line-height:1.8; white-space:pre; margin-top:6px">
+pytest tests/ -v
+
+<span class="cyn"># Expected: all green ✓</span>
+<span class="cyn"># If any fail, check the error — usually a missing .env value</span></div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h4>First Live Run (single cycle, watch output)</h4>
+        <div class="dtree" style="font-size:11px; line-height:1.8; white-space:pre; margin-top:6px">
+<span class="cyn"># Run one full cycle in debug mode</span>
+$env:DEBUG="True"; $env:LOG_LEVEL="DEBUG"; python main.py
+
+<span class="cyn"># What you should see in logs:</span>
+<span class="grn">[TREND-MASTER] Fetching Daily candles for EURUSD...</span>
+<span class="grn">[TREND-MASTER] Bias: BULLISH | Confidence: 72%</span>
+<span class="blu">[ANALYSE-MASTER] Checking ICT elements...</span>
+<span class="blu">[ANALYSE-MASTER] No signal — missing pullback confirmation</span>
+<span class="yel">[TRADER-MASTER] No signal received — idle</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═════════════════════════════════════ PAGE 12 — 24/7 AUTOMATION ══ -->
+<div class="page">
+  <h2>12. Running 24/7 — Fully Automated Operation</h2>
+  <p>Three approaches are provided — choose the one matching your setup.</p>
+
+  <div class="note-box">
+    <strong>Requirement for all methods:</strong> The MetaTrader 5 terminal must remain <strong>open
+    and logged in</strong> on the same Windows machine at all times. MT5 does not support headless
+    operation — it must have a visible (or minimised) window.
+  </div>
+
+  <!-- ── APPROACH A: Loop Script ── -->
+  <h3>Approach A — Add the 15-Minute Loop to <code>main.py</code> (simplest)</h3>
+  <p>Replace the single-cycle call in <code>main.py</code> with this continuous loop:</p>
+
+  <div class="dtree" style="font-size:11px; line-height:1.8; white-space:pre">
+<span class="cyn"># main.py — continuous loop (add/replace the existing main() body)</span>
+<span class="yel">import</span> asyncio, logging
+<span class="yel">from</span> agents.workflow <span class="yel">import</span> TradingWorkflow
+<span class="yel">from</span> market_data.mt5_provider <span class="yel">import</span> MT5Provider
+<span class="yel">from</span> config.settings <span class="yel">import</span> settings
+<span class="yel">from</span> database.db_manager <span class="yel">import</span> db_manager
+
+logger = logging.getLogger(__name__)
+<span class="grn">CYCLE_INTERVAL_SECONDS</span> = <span class="yel">900</span>   <span class="blu"># 15 minutes</span>
+
+<span class="yel">async def</span> run_forever():
+    db_manager.create_tables()
+    provider = MT5Provider(settings.MT5_ACCOUNT, settings.MT5_PASSWORD, settings.MT5_SERVER)
+    <span class="yel">await</span> provider.connect()
+    workflow = TradingWorkflow(verbose=settings.DEBUG)
+
+    <span class="yel">while True</span>:
+        <span class="yel">try</span>:
+            <span class="cyn"># Fetch live candles</span>
+            market_data = {
+                <span class="red">"daily"</span>: <span class="yel">await</span> provider.get_candles(settings.MT5_SYMBOL, <span class="red">"D"</span>,   200),
+                <span class="red">"4h"</span>:    <span class="yel">await</span> provider.get_candles(settings.MT5_SYMBOL, <span class="red">"4H"</span>,  200),
+                <span class="red">"1h"</span>:    <span class="yel">await</span> provider.get_candles(settings.MT5_SYMBOL, <span class="red">"1H"</span>,  200),
+            }
+            result = <span class="yel">await</span> workflow.execute_trading_cycle(market_data)
+            <span class="yel">if</span> result:
+                logger.info(<span class="grn">f"Cycle complete — Trade placed: {result.signal_id}"</span>)
+            <span class="yel">else</span>:
+                logger.info(<span class="red">"Cycle complete — No signal"</span>)
+        <span class="yel">except Exception as</span> e:
+            logger.error(<span class="red">f"Cycle error: {e}"</span>, exc_info=<span class="grn">True</span>)  <span class="blu"># log, don't crash</span>
+
+        <span class="cyn"># Wait 15 minutes before next cycle</span>
+        logger.info(<span class="grn">f"Sleeping {CYCLE_INTERVAL_SECONDS}s until next cycle..."</span>)
+        <span class="yel">await</span> asyncio.sleep(CYCLE_INTERVAL_SECONDS)
+
+<span class="yel">if</span> __name__ == <span class="red">"__main__"</span>:
+    asyncio.run(run_forever())</div>
+
+  <div class="divider"></div>
+
+  <!-- ── APPROACH B: Windows Service via NSSM ── -->
+  <h3>Approach B — Windows Service with NSSM (recommended for production)</h3>
+  <p>NSSM (Non-Sucking Service Manager) wraps your Python script as a proper Windows Service
+  that starts automatically on boot, restarts on crash, and runs without a logged-in user session.</p>
+
+  <div class="steps">
+    <div class="step-card red">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Install NSSM</h4>
+        <ul>
+          <li>Download from <strong>nssm.cc</strong> → extract to <code>C:\nssm\</code></li>
+          <li>Add <code>C:\nssm\win64\</code> to your Windows PATH</li>
+          <li>Or run commands with the full path: <code>C:\nssm\win64\nssm.exe ...</code></li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card red">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>Create the Windows Service</h4>
+        <div class="dtree" style="font-size:11px; line-height:1.8; white-space:pre; margin-top:6px">
+<span class="cyn"># Run PowerShell as Administrator</span>
+nssm install TechnobizTrader
+
+<span class="cyn"># In the NSSM GUI that opens:</span>
+<span class="grn">Path:</span>        G:\SSD_Files\Trading_Agent\.venv\Scripts\python.exe
+<span class="grn">Startup dir:</span> G:\SSD_Files\Trading_Agent
+<span class="grn">Arguments:</span>   main.py
+
+<span class="cyn"># Click Install Service</span></div>
+      </div>
+    </div>
+    <div class="step-card red">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>Configure Restart &amp; Log Output</h4>
+        <div class="dtree" style="font-size:11px; line-height:1.8; white-space:pre; margin-top:6px">
+<span class="cyn"># Set log file for stdout</span>
+nssm set TechnobizTrader AppStdout G:\SSD_Files\Trading_Agent\logs\service_out.log
+nssm set TechnobizTrader AppStderr G:\SSD_Files\Trading_Agent\logs\service_err.log
+
+<span class="cyn"># Auto-restart if it crashes (restart after 5 seconds)</span>
+nssm set TechnobizTrader AppRestartDelay 5000
+
+<span class="cyn"># Start the service</span>
+nssm start TechnobizTrader
+
+<span class="cyn"># Check status</span>
+nssm status TechnobizTrader   <span class="grn"># Expected: SERVICE_RUNNING</span>
+
+<span class="cyn"># Stop / restart commands</span>
+nssm stop TechnobizTrader
+nssm restart TechnobizTrader</div>
+      </div>
+    </div>
+    <div class="step-card red">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>Set MT5 to Auto-Start on Boot</h4>
+        <ul>
+          <li>Press <kbd>Win + R</kbd> → type <code>shell:startup</code> → press Enter</li>
+          <li>Create a shortcut to your MT5 terminal EXE in that folder</li>
+          <li>MT5 will now launch automatically when Windows boots</li>
+          <li>Configure MT5 to <strong>auto-login</strong>: File → Login to Trade Account → check <em>Save password</em></li>
+          <li>Set Windows to <strong>auto-login</strong> on boot: <code>netplwiz</code> → untick password requirement</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── APPROACH C: Windows Task Scheduler ── -->
+  <h3>Approach C — Windows Task Scheduler (no install needed)</h3>
+  <div class="steps">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Open Task Scheduler</h4>
+        <ul>
+          <li>Press <kbd>Win + S</kbd> → search <strong>Task Scheduler</strong> → open it</li>
+          <li>Right-click <strong>Task Scheduler Library</strong> → <strong>Create Basic Task</strong></li>
+          <li>Name: <code>TechnobizTrader_24x7</code></li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>Configure Trigger &amp; Action</h4>
+        <ul>
+          <li>Trigger: <strong>When the computer starts</strong></li>
+          <li>Action: <strong>Start a program</strong></li>
+          <li>Program: <code>G:\SSD_Files\Trading_Agent\.venv\Scripts\python.exe</code></li>
+          <li>Arguments: <code>main.py</code></li>
+          <li>Start in: <code>G:\SSD_Files\Trading_Agent</code></li>
+          <li>Security options: <strong>Run whether user is logged on or not</strong> → requires your Windows password</li>
+          <li>Tick <strong>Run with highest privileges</strong></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── VPS section ── -->
+  <h3>Running on a VPS (24/7 without your own PC)</h3>
+  <table class="ict-table">
+    <tr><th>Provider</th><th>Recommended Plan</th><th>Notes</th></tr>
+    <tr>
+      <td><strong>Contabo VPS</strong></td>
+      <td>VPS S (4 vCPU, 8 GB RAM, €6.99/mo)</td>
+      <td>Windows Server 2019 image; install MT5 + Python. Popular with traders.</td>
+    </tr>
+    <tr>
+      <td><strong>Azure VM</strong></td>
+      <td>Standard_B2s (2 vCPU, 4 GB RAM, ~$35/mo)</td>
+      <td>Windows Server 2022; integrates natively with Azure AI Foundry.</td>
+    </tr>
+    <tr>
+      <td><strong>Vultr / Linode</strong></td>
+      <td>2 vCPU, 4 GB, $24–30/mo</td>
+      <td>Windows Server option available; good uptime SLA.</td>
+    </tr>
+    <tr>
+      <td><strong>Local PC</strong></td>
+      <td>Existing machine</td>
+      <td>Use NSSM (Approach B). Requires UPS for power backup. Not recommended for production.</td>
+    </tr>
+  </table>
+
+  <div class="note-box" style="margin-top:18px">
+    <strong>VPS setup steps:</strong>
+    (1) Provision a Windows Server VPS &nbsp;→&nbsp;
+    (2) RDP into it &nbsp;→&nbsp;
+    (3) Install MT5 terminal &nbsp;→&nbsp;
+    (4) Install Python 3.10+ &nbsp;→&nbsp;
+    (5) Copy project files (Git clone or SFTP) &nbsp;→&nbsp;
+    (6) Run setup steps 1–6 from Section 11 &nbsp;→&nbsp;
+    (7) Install NSSM service (Approach B) &nbsp;→&nbsp;
+    (8) Configure MT5 to auto-login on boot &nbsp;→&nbsp;
+    (9) Done — disconnect RDP, system runs headlessly.
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>Monitoring &amp; Health Checks While Running 24/7</h3>
+  <table class="pos-table">
+    <tr><th>What to Monitor</th><th>How</th><th>Frequency</th></tr>
+    <tr>
+      <td>Agent cycle logs</td>
+      <td><code>tail -f logs\trading.log</code> or open log file in Notepad++</td>
+      <td>Daily check</td>
+    </tr>
+    <tr>
+      <td>MT5 connection alive</td>
+      <td>Check MT5 bottom bar shows green dot + server name</td>
+      <td>Daily</td>
+    </tr>
+    <tr>
+      <td>Open trades status</td>
+      <td>MT5 → Trade tab; or query <code>trade_executions</code> DB table</td>
+      <td>After any signal</td>
+    </tr>
+    <tr>
+      <td>Daily P&amp;L</td>
+      <td><code>python -c "from agents.workflow import TradingWorkflow; ..."</code> or check DB</td>
+      <td>End of day</td>
+    </tr>
+    <tr>
+      <td>Drawdown alert</td>
+      <td>System auto-pauses if daily drawdown &gt; 5% — check logs for <code>[PAUSED]</code></td>
+      <td>Automatic</td>
+    </tr>
+    <tr>
+      <td>Service health (NSSM)</td>
+      <td><code>nssm status TechnobizTrader</code> → must show <code>SERVICE_RUNNING</code></td>
+      <td>Weekly or after reboot</td>
+    </tr>
+  </table>
+
+  <div class="note-box" style="margin-top:28px">
+    <strong>To save this as PDF:</strong> Open this file in Chrome or Edge.
+    Press <kbd>Ctrl + P</kbd> → <strong>Save as PDF</strong> → A4 size → Minimum margins → Save.
+  </div>
+
+  <div style="text-align:center; margin-top:36px; color:#999; font-size:11px;">
+    TechnobizTrader v1.0 &nbsp;·&nbsp; April 22, 2026 &nbsp;·&nbsp; ICT Methodology &nbsp;·&nbsp; Microsoft Agent Framework v1.0.0rc6
+  </div>
+</div>
+
+</body>
+</html>

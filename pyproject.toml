@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "technobiz-trader"
+version = "1.0.0"
+description = "Multi-agent AI trading system using ICT methodology"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "TechnobizTrader Team"},
+]
+keywords = ["trading", "AI", "agents", "ICT", "forex"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+
+dependencies = [
+    "agent-framework-core==1.0.0rc6",
+    "agent-framework-foundry==1.0.0rc6",
+    "azure-ai-agentserver-agentframework==1.0.0b16",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "sqlalchemy>=2.0.0",
+    "fastapi>=0.104.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/technobiz-trader"
+Documentation = "https://github.com/yourusername/technobiz-trader/wiki"
+Repository = "https://github.com/yourusername/technobiz-trader.git"
+Issues = "https://github.com/yourusername/technobiz-trader/issues"
+
+[tool.setuptools]
+packages = ["agents", "config", "market_data", "database", "utils", "tests"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.pylint]
+max-line-length = 100
+disable = ["C0111", "W0212"]

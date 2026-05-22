@@ -1,0 +1,83 @@
+version: '3.8'
+
+# Production docker-compose for TechnobizTrader.
+#
+# Required environment variables (set in shell or a .env file that is
+# listed in .gitignore — NEVER commit real credentials):
+#
+#   POSTGRES_PASSWORD   strong database password
+#   GUI_SECRET_KEY      API auth token for the GUI (min 32 random chars)
+#   MT5_ACCOUNT         MetaTrader 5 account number
+#   MT5_PASSWORD        MetaTrader 5 password
+#   MT5_SERVER          MetaTrader 5 broker server
+#   CLAUDE_API_KEY      Anthropic API key
+#   FOUNDRY_PROJECT_ENDPOINT       Azure AI Foundry endpoint (optional)
+#   FOUNDRY_MODEL_DEPLOYMENT_NAME  Azure deployment name (optional)
+#   FOUNDRY_API_KEY                Azure AI Foundry key (optional)
+#
+# Start:  docker-compose up -d
+# Logs:   docker-compose logs -f technobiz-trader
+# Stop:   docker-compose down
+
+services:
+  technobiz-trader:
+    build: .
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=False
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/technobiz_trader
+      - GUI_SECRET_KEY=${GUI_SECRET_KEY}
+      - MT5_ACCOUNT=${MT5_ACCOUNT}
+      - MT5_PASSWORD=${MT5_PASSWORD}
+      - MT5_SERVER=${MT5_SERVER}
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - FOUNDRY_PROJECT_ENDPOINT=${FOUNDRY_PROJECT_ENDPOINT:-}
+      - FOUNDRY_MODEL_DEPLOYMENT_NAME=${FOUNDRY_MODEL_DEPLOYMENT_NAME:-}
+      - FOUNDRY_API_KEY=${FOUNDRY_API_KEY:-}
+      - ACCOUNT_BALANCE=${ACCOUNT_BALANCE:-10000}
+      - MAX_CONCURRENT_TRADES=${MAX_CONCURRENT_TRADES:-3}
+      - MAX_RISK_PER_TRADE=${MAX_RISK_PER_TRADE:-0.02}
+      - MIN_CONFIDENCE_THRESHOLD=${MIN_CONFIDENCE_THRESHOLD:-75}
+      - TRADING_PAIRS=${TRADING_PAIRS:-EURUSD,GBPUSD,XAUUSD}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8765}
+      - GUI_HOST=0.0.0.0
+      - GUI_PORT=8765
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    ports:
+      - "${GUI_PORT:-8765}:8765"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8765/api/status",
+             "-H", "X-GUI-Token:${GUI_SECRET_KEY}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=technobiz_trader
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Do NOT expose port 5432 externally in production.
+    # Remove the ports block below if the app and DB run on the same host.
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d technobiz_trader"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:

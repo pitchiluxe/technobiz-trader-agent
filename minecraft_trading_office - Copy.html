@@ -1,0 +1,4448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechnobizTrader Agency - Trading Office</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #1a1a2e;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .agency-title {
+            background: linear-gradient(135deg, #4CAF50 0%, #2196F3 50%, #FF9800 100%);
+            color: #fff;
+            text-align: center;
+            padding: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            border-bottom: 3px solid #FFD700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            letter-spacing: 2px;
+        }
+
+        .layout {
+            display: flex;
+            width: 100%;
+            flex: 1;
+            flex-direction: column;
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            gap: 0;
+        }
+
+        /* Left Sidebar */
+        .sidebar-left {
+            width: 60px;
+            background: #0f0f1e;
+            border-right: 2px solid #FFD700;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px 0;
+            gap: 20px;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            background: #2a2a3e;
+            border: 2px solid #FFD700;
+            color: #FFD700;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .zoom-btn:hover {
+            background: #FFD700;
+            color: #1a1a2e;
+        }
+
+        /* Center Office */
+        .office-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: #1a1a2e;
+            position: relative;     /* anchors the status panel */
+            overflow: hidden;       /* clip the office when zoomed in */
+        }
+
+        .office {
+            width: 100%;
+            height: 100%;
+            max-width: 1200px;
+            max-height: 700px;
+            background: #0f0f1e;
+            border: 3px solid #FFD700;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: 1.6fr 0.3fr 1.6fr 0.32fr 1.1fr 1fr;
+            grid-template-rows: 1fr 0.22fr 1fr;
+            gap: 3px;
+            padding: 15px;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Hallway — full-width corridor between top row and bottom row */
+        .hallway {
+            grid-column: 1 / -1;
+            grid-row: 2;
+            background:
+                repeating-linear-gradient(0deg, #4a4a55 0px, #4a4a55 6px, #3a3a45 6px, #3a3a45 12px);
+            border: 2px solid #2e2e35;
+            border-radius: 3px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hallway::before {
+            content: '⟵    HALLWAY    ⟶';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 6px;
+            white-space: nowrap;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        /* Click-on-agent status popup */
+        .agent-popup {
+            position: fixed;
+            background: rgba(15, 15, 30, 0.96);
+            border: 2px solid #FFD700;
+            border-radius: 6px;
+            color: #FFD700;
+            padding: 10px 14px;
+            font-size: 11px;
+            z-index: 500;
+            min-width: 180px;
+            pointer-events: none;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
+            font-family: 'Courier New', monospace;
+            animation: popup-fade 0.15s ease-out;
+        }
+        @keyframes popup-fade {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .popup-header {
+            font-weight: bold;
+            color: #ffffff;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #FFD700;
+            padding-bottom: 4px;
+            font-size: 12px;
+        }
+        .popup-row {
+            color: #b0e0e6;
+            margin-bottom: 3px;
+        }
+        .popup-row b { color: #4CAF50; }
+
+        /* Bottom-edge door variant (cafeteria + main-office face the hallway below) */
+        .door.bottom-edge {
+            top: auto;
+            bottom: -8px;
+            border-radius: 0 0 3px 3px;
+            transform-origin: left bottom;
+        }
+        .door.bottom-edge::after {
+            top: 50%;
+        }
+        .door.bottom-edge.open {
+            transform: translateX(-50%) rotateY(-100deg);
+        }
+        .door-frame.bottom-edge {
+            top: auto;
+            bottom: -8px;
+            border-radius: 0 0 4px 4px;
+        }
+
+        /* Explicit grid placement (6-col layout).
+           Top row: Kitchen (1-3) | VHall1 (4) | Breakroom (5) | MainOffice (6).
+           Bottom:  Trend (1) | VHall2 (2) | Analyse (3) | VHall1 (4) | Trader (5) | Restroom (6). */
+        .room-trend    { grid-row: 3; grid-column: 1; }
+        .room-analyse  { grid-row: 3; grid-column: 3; }
+        .room-trader   { grid-row: 3; grid-column: 5; }
+        .room-restroom { grid-row: 3; grid-column: 6; }
+        .room-main     { grid-row: 1; grid-column: 6; }
+        .room-breakroom{ grid-row: 1; grid-column: 5; }
+        .vertical-hallway   { grid-row: 1 / 4; grid-column: 4; }
+        .vertical-hallway-2 { grid-row: 3;     grid-column: 2; }
+
+        /* Vertical hallways — connect rooms to the main horizontal hallway */
+        .vertical-hallway, .vertical-hallway-2 {
+            background: repeating-linear-gradient(
+                90deg, #4a4a55 0px, #4a4a55 6px, #3a3a45 6px, #3a3a45 12px);
+            border: 2px solid #2e2e35;
+            border-radius: 3px;
+            position: relative;
+            overflow: hidden;
+        }
+        .vertical-hallway-2::before {
+            content: 'HALL';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) rotate(-90deg);
+            color: #ffffff;
+            font-size: 8px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            text-shadow: 1px 1px 2px #000;
+            pointer-events: none;
+        }
+        .vertical-hallway::before {
+            content: 'HALL';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) rotate(-90deg);
+            color: #ffffff;
+            font-size: 9px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            text-shadow: 1px 1px 2px #000;
+            pointer-events: none;
+        }
+
+        /* Breakroom — relaxed atmosphere, soft tones */
+        .room-breakroom {
+            background:
+                repeating-linear-gradient(0deg, #e0c9a8 0px, #e0c9a8 18px, #ccb38a 18px, #ccb38a 36px),
+                repeating-linear-gradient(90deg, #e0c9a8 0px, #e0c9a8 18px, #ccb38a 18px, #ccb38a 36px);
+            background-size: 36px 36px;
+            border: 2px solid #6c5240;
+            border-radius: 4px;
+        }
+
+        /* Breakroom furniture */
+        .couch {
+            width: 70px; height: 22px;
+            background: linear-gradient(180deg, #3a5a8a, #2a4068);
+            border: 2px solid #1a2a48;
+            border-radius: 6px 6px 3px 3px;
+            position: relative;
+            box-shadow: inset 0 -3px 0 rgba(0,0,0,0.3);
+        }
+        .couch::before, .couch::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            width: 8px; height: 12px;
+            background: #2a4068;
+            border: 1px solid #1a2a48;
+            border-radius: 3px;
+        }
+        .couch::before { left: -4px; }
+        .couch::after  { right: -4px; }
+
+        .tv {
+            width: 50px; height: 28px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+            border: 3px solid #2a2a2a;
+            border-radius: 3px;
+            position: relative;
+            box-shadow: 0 0 8px rgba(91, 155, 213, 0.4);
+        }
+        .tv::before {
+            content: '';
+            position: absolute;
+            top: 4px; left: 4px; right: 4px; bottom: 4px;
+            background: linear-gradient(135deg, #5b9bd5 0%, #2a4d6a 100%);
+            opacity: 0.85;
+        }
+        .tv::after {
+            content: '📺';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 11px;
+        }
+
+        .coffee-table {
+            width: 36px; height: 14px;
+            background: linear-gradient(180deg, #8b6f47, #5a3d20);
+            border: 2px solid #2e1604;
+            border-radius: 2px;
+            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.3);
+        }
+
+        /* Kitchen — checkered tile floor, painted-wall feel along the top.
+           Furniture is absolutely positioned to prevent overlap. */
+        .cafeteria {
+            grid-column: 1 / 4;
+            grid-row: 1;
+            background-color: #ece6d8;
+            background-image:
+                linear-gradient(180deg, #f3e5cd 0px, #f3e5cd 56px, transparent 56px),
+                conic-gradient(at 50% 50%, #ece6d8 0deg 90deg, #d8d0bd 90deg 180deg, #ece6d8 180deg 270deg, #d8d0bd 270deg 360deg);
+            background-size: 100% 100%, 36px 36px;
+            background-repeat: no-repeat, repeat;
+            border: 2px solid #6c5240;
+            border-radius: 4px;
+            position: relative;
+            padding: 15px;
+            overflow: hidden;
+        }
+        /* Subtle tile backsplash strip behind back-wall appliances */
+        .cafeteria::before {
+            content: '';
+            position: absolute;
+            top: 38px; left: 8px; right: 8px;
+            height: 80px;
+            background: repeating-linear-gradient(0deg, #f7efe2 0px, #f7efe2 6px, #ece4d2 6px, #ece4d2 12px);
+            border-top: 2px solid #c8b89a;
+            border-bottom: 2px solid #c8b89a;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .cafeteria-label {
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            font-size: 12px;
+            color: #fff;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        .cafe-table {
+            width: 60px;
+            height: 45px;
+            background: #8b4513;
+            border: 2px solid #654321;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cafe-chair {
+            width: 12px;
+            height: 12px;
+            background: #228b22;
+            border-radius: 2px;
+            margin: 0 4px;
+        }
+
+        .plant {
+            width: 25px;
+            height: 40px;
+            background: linear-gradient(135deg, #228b22 0%, #1a6b1a 100%);
+            border-radius: 50% 50% 20% 20%;
+            position: relative;
+        }
+
+        .plant::before {
+            content: '';
+            position: absolute;
+            width: 4px;
+            height: 20px;
+            background: #8b4513;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        /* Rooms */
+        .room {
+            border: 2px solid #654321;
+            border-radius: 4px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0px;
+            padding: 15px;
+        }
+
+        .room-trend {
+            background:
+                repeating-linear-gradient(0deg, #9d7e67 0px, #9d7e67 20px, #8b6f47 20px, #8b6f47 40px),
+                repeating-linear-gradient(90deg, #9d7e67 0px, #9d7e67 20px, #8b6f47 20px, #8b6f47 40px);
+            background-size: 40px 40px;
+        }
+
+        .room-analyse {
+            background:
+                repeating-linear-gradient(0deg, #7a8fa0 0px, #7a8fa0 20px, #6a7f90 20px, #6a7f90 40px),
+                repeating-linear-gradient(90deg, #7a8fa0 0px, #7a8fa0 20px, #6a7f90 20px, #6a7f90 40px);
+            background-size: 40px 40px;
+        }
+
+        .room-trader {
+            background:
+                repeating-linear-gradient(0deg, #6a8aaa 0px, #6a8aaa 20px, #5a7a9a 20px, #5a7a9a 40px),
+                repeating-linear-gradient(90deg, #6a8aaa 0px, #6a8aaa 20px, #5a7a9a 20px, #5a7a9a 40px);
+            background-size: 40px 40px;
+        }
+
+        .room-restroom {
+            background:
+                repeating-linear-gradient(0deg, #d8e6ec 0px, #d8e6ec 16px, #b8c8d0 16px, #b8c8d0 32px),
+                repeating-linear-gradient(90deg, #d8e6ec 0px, #d8e6ec 16px, #b8c8d0 16px, #b8c8d0 32px);
+            background-size: 32px 32px;
+            border: 2px solid #4a5560;
+        }
+
+        .toilet {
+            width: 28px;
+            height: 36px;
+            background: #fff;
+            border: 2px solid #888;
+            border-radius: 6px 6px 10px 10px;
+            position: relative;
+            perspective: 140px;
+            perspective-origin: 50% 0%;
+        }
+        .toilet-tank {
+            position: absolute;
+            top: -8px; left: 4px;
+            width: 18px; height: 8px;
+            background: #fff;
+            border: 2px solid #888;
+            border-radius: 4px 4px 0 0;
+        }
+        .toilet-lid {
+            position: absolute;
+            top: 0; left: 1px;
+            width: 22px; height: 14px;
+            background: #f4f4f4;
+            border: 2px solid #888;
+            border-radius: 6px 6px 4px 4px;
+            transform-origin: top center;
+            transition: transform 0.5s ease-in-out;
+            z-index: 2;
+        }
+        .toilet.open .toilet-lid {
+            transform: rotateX(-95deg);
+        }
+        .sink {
+            width: 32px;
+            height: 18px;
+            background: #fff;
+            border: 2px solid #888;
+            border-radius: 4px;
+            margin-top: 8px;
+            position: relative;
+        }
+        .sink::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px; height: 8px;
+            background: #aaa;
+            border: 1px solid #555;
+            border-radius: 2px 2px 0 0;
+        }
+        .sink::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            opacity: 0;
+            background: #5b9bd5;
+            border-radius: 1px;
+        }
+        .sink.washing::after {
+            width: 3px;
+            height: 7px;
+            opacity: 0.85;
+            animation: water-flow 0.25s infinite;
+        }
+        @keyframes water-flow {
+            0%, 100% { transform: translateX(-50%) scaleY(1); }
+            50%      { transform: translateX(-50%) scaleY(1.4); }
+        }
+
+        /* Cafeteria upgrades — counter + fridge for remodel */
+        .cafe-counter {
+            width: 90px;
+            height: 22px;
+            background: linear-gradient(180deg, #c0c0c0 0%, #909090 100%);
+            border: 2px solid #5a5a5a;
+            border-radius: 3px;
+        }
+        .fridge {
+            width: 30px;
+            height: 50px;
+            background: linear-gradient(180deg, #e8e8e8 0%, #b8b8b8 100%);
+            border: 2px solid #5a5a5a;
+            border-radius: 3px;
+            position: relative;
+        }
+        .fridge::after {
+            content: '';
+            position: absolute;
+            top: 22px; left: 2px;
+            right: 2px; height: 1px;
+            background: #5a5a5a;
+        }
+        .fridge::before {
+            content: '';
+            position: absolute;
+            top: 8px; right: 4px;
+            width: 3px; height: 8px;
+            background: #5a5a5a;
+            border-radius: 1px;
+        }
+
+        /* Food plates — separate plates for cat and dog, on the floor */
+        .food-plate {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.2);
+            z-index: 3;
+        }
+        .food-plate.cat {
+            background: #ff9aa2;
+            top: 14px;
+            right: 70px;
+        }
+        .food-plate.dog {
+            background: #c9b18a;
+            top: 14px;
+            right: 32px;
+        }
+        .food-plate-label {
+            position: absolute;
+            font-size: 8px;
+            color: #000;
+            text-shadow: none;
+            text-align: center;
+            width: 30px;
+            top: -12px;
+            left: -4px;
+            font-weight: bold;
+        }
+
+        /* Pets (cat / dog) — small block characters */
+        .pet {
+            position: absolute;
+            width: 26px;
+            height: 22px;
+            z-index: 8;
+            pointer-events: none;
+            transition: transform 0.1s;
+        }
+        .pet-body {
+            width: 22px;
+            height: 14px;
+            border: 2px solid #000;
+            border-radius: 6px 6px 4px 4px;
+            position: relative;
+        }
+        .pet.cat .pet-body { background: #f5a637; }
+        .pet.dog .pet-body { background: #8b5a2b; }
+        .pet-ear {
+            position: absolute;
+            width: 0; height: 0;
+            top: -7px;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+        }
+        .pet.cat .pet-ear { border-bottom: 7px solid #f5a637; }
+        .pet.cat .pet-ear.left  { left: 0; }
+        .pet.cat .pet-ear.right { right: 0; }
+        .pet.dog .pet-ear {
+            top: -3px;
+            width: 6px; height: 8px;
+            border: 2px solid #000;
+            background: #6a4520;
+            border-radius: 50% 50% 50% 50%;
+        }
+        .pet.dog .pet-ear.left  { left: -2px; }
+        .pet.dog .pet-ear.right { right: -2px; }
+        .pet-eye {
+            position: absolute;
+            width: 2px; height: 2px;
+            background: #000;
+            top: 4px;
+            border-radius: 50%;
+        }
+        .pet-eye.left  { left: 5px; }
+        .pet-eye.right { right: 5px; }
+        .pet-tail {
+            position: absolute;
+            right: -6px;
+            top: 2px;
+            width: 8px; height: 3px;
+            background: inherit;
+            border: 2px solid #000;
+            border-radius: 2px;
+        }
+        .pet.cat .pet-tail { background: #f5a637; }
+        .pet.dog .pet-tail { background: #8b5a2b; }
+        .pet.eating { animation: pet-eat 0.6s infinite; }
+        @keyframes pet-eat {
+            0%, 100% { transform: translateY(0) scaleY(1); }
+            50%      { transform: translateY(2px) scaleY(0.85); }
+        }
+        .pet-name {
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 7px;
+            color: #fff;
+            text-shadow: 1px 1px 2px #000;
+            white-space: nowrap;
+            font-weight: bold;
+        }
+
+        .room-label {
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            font-size: 10px;
+            color: #fff;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        .desk-setup {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+
+        .desk-top {
+            width: 70px;
+            height: 12px;
+            background: #cd853f;
+            border: 1px solid #8b4513;
+            border-top: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chair {
+            width: 90px;
+            height: 28px;
+            background: #8b4513;
+            border: 2px solid #654321;
+            border-radius: 3px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            padding: 0 8px;
+            margin-top: 3px;
+        }
+
+        .chair-leg {
+            width: 6px;
+            height: 20px;
+            background: #654321;
+            border: 1px solid #4a2511;
+            border-radius: 1px;
+        }
+
+        .chair::after {
+            content: '';
+            position: absolute;
+            width: 40px;
+            height: 2px;
+            background: #654321;
+            bottom: -8px;
+            left: 25px;
+        }
+
+        .monitor {
+            width: 45px;
+            height: 30px;
+            background: #d0d0d0;
+            border: 2px solid #808080;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .monitor::after {
+            content: '';
+            width: 35px;
+            height: 20px;
+            background: linear-gradient(135deg, #000080 0%, #0000ff 100%);
+            border: 1px solid #0000ff;
+            border-radius: 1px;
+        }
+
+        /* Agent */
+        .agent {
+            position: absolute;
+            width: 32px;
+            height: 50px;
+            z-index: 10;
+            cursor: pointer;
+        }
+
+        .character {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .head {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin-bottom: 2px;
+        }
+
+        /* ── Skin tones for old costumes (backward compat) ── */
+        .head.costume-1 { background: #9d7c6d; }
+        .head.costume-2 { background: #8b6f47; }
+        .head.costume-3 { background: #c8a060; }
+        .head.costume-4 { background: #d4956a; }
+        .head.costume-5 { background: #f0c8a0; }
+        .head.costume-6 { background: #b87a50; }
+
+        /* ── Skin tones for new costumes ── */
+        .head.c-m1  { background: #c8a060; }
+        .head.c-m2  { background: #e8b87a; }
+        .head.c-m3  { background: #8d5524; }
+        .head.c-m4  { background: #d4a878; }
+        .head.c-m5  { background: #f5d5b0; }
+        .head.c-w1  { background: #d4956a; }
+        .head.c-w2  { background: #f2c78e; }
+        .head.c-w3  { background: #c47840; }
+        .head.c-w4  { background: #8d5524; }
+        .head.c-w5  { background: #5c3618; }
+        .head.c-wig1 { background: #b87a50; }
+        .head.c-wig2 { background: #d4956a; }
+        .head.c-wig3 { background: #f5d5b0; }
+        .head.c-wig4 { background: #9d7c6d; }
+        .head.c-wig5 { background: #5c3618; }
+
+        /* ── Legacy hair via ::before (costumes 1-6 only) ── */
+        .head::before { content: none; } /* default off */
+        .head.costume-1::before { content:''; position:absolute; top:-2px; left:-2px; right:-2px; height:8px; border-top-left-radius:50%; border-top-right-radius:50%; background:#2b1d12; }
+        .head.costume-2::before { content:''; position:absolute; top:-2px; left:-2px; right:-2px; height:7px; border-top-left-radius:50%; border-top-right-radius:50%; background:#5a3a1a; }
+        .head.costume-3::before { content:''; position:absolute; top:-2px; left:-2px; right:-2px; height:8px; border-top-left-radius:50%; border-top-right-radius:50%; background:#111; }
+        .head.costume-4::before { content:''; position:absolute; top:-2px; left:-3px; right:-3px; height:18px; border-radius:50% 50% 30% 30%; background:#6b3410; }
+        .head.costume-5::before { content:''; position:absolute; top:-2px; left:-3px; right:-3px; height:18px; border-radius:50% 50% 30% 30%; background:#c08a4e; }
+        .head.costume-6::before { content:''; position:absolute; top:-2px; left:-2px; right:-2px; height:12px; border-radius:50% 50% 25% 25%; background:#3a2218; }
+
+        /* ── Legacy eyes / mouth (kept for costumes 1-6 template) ── */
+        .eyes {
+            position: absolute;
+            width: 3px; height: 3px;
+            background: #fff;
+            border-radius: 50%;
+            border: 1px solid #444;
+            top: 9px;
+            overflow: hidden;
+        }
+        .eyes.left  { left: 5px; }
+        .eyes.right { left: 16px; }
+        .eyes::after { content:''; position:absolute; width:2px; height:2px; background:#4a7ab5; border-radius:50%; top:0; left:0; }
+
+        .mouth {
+            position: absolute;
+            width: 8px; height: 4px;
+            border-bottom: 2px solid rgba(0,0,0,0.55);
+            border-radius: 0 0 6px 6px;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           REALISTIC FACE COMPONENTS (used by new costume classes)
+           ═══════════════════════════════════════════════════════════ */
+
+        /* ── Hair div ── */
+        .hair {
+            position: absolute;
+            top: -3px; left: -2px; right: -2px;
+            height: 10px;
+            border-top-left-radius: 50%;
+            border-top-right-radius: 50%;
+            z-index: 3;
+        }
+        /* Men short hair */
+        .h-short-black  { background: #111;     height: 9px; }
+        .h-short-brown  { background: #5a3a1a; height: 9px; }
+        .h-short-blonde { background: #d4b060; height: 8px; }
+        .h-fade         { background: #2b1d12; height: 7px; left: 0; right: 0; border-radius: 50% 50% 35% 35%; }
+        .h-bald         { display: none; }
+        /* Women hair */
+        .h-long-brown   { background: #6b3410; height: 20px; left: -4px; right: -4px; border-radius: 50% 50% 28% 28%; }
+        .h-long-blonde  { background: #d4a020; height: 20px; left: -4px; right: -4px; border-radius: 50% 50% 28% 28%; }
+        .h-long-red     { background: #b22222; height: 20px; left: -4px; right: -4px; border-radius: 50% 50% 28% 28%; }
+        .h-long-black   { background: #1a1a1a; height: 20px; left: -4px; right: -4px; border-radius: 50% 50% 28% 28%; }
+        .h-bob          { background: #8b4513; height: 15px; left: -3px; right: -3px; border-radius: 50% 50% 30% 30%; }
+        .h-bun          { background: #5a3a1a; height: 9px; }
+        .h-bun::after   { content:''; position:absolute; width:8px; height:8px; background:#5a3a1a; border-radius:50%; top:-6px; left:50%; transform:translateX(-50%); border:1px solid #3a2010; }
+        .h-afro         { background: #1a1000; height: 22px; left: -7px; right: -7px; top: -7px; border-radius: 50%; }
+        /* Wigs */
+        .h-wig-red      { background: #c0392b; height: 20px; left: -4px; right: -4px; border-radius: 50% 50% 28% 28%; }
+        .h-wig-purple   { background: #8e44ad; height: 20px; left: -4px; right: -4px; border-radius: 50% 50% 28% 28%; }
+        .h-wig-pink     { background: #e91e8c; height: 20px; left: -4px; right: -4px; border-radius: 50% 50% 28% 28%; }
+        .h-wig-gold     { background: #f0b400; height: 20px; left: -4px; right: -4px; border-radius: 50% 50% 28% 28%; }
+        .h-wig-afro     { background: #6b3a8a; height: 22px; left: -7px; right: -7px; top: -7px; border-radius: 50%; }
+
+        /* ── Eyebrows ── */
+        .eyebrow {
+            position: absolute;
+            width: 5px; height: 2px;
+            background: rgba(0,0,0,0.55);
+            border-radius: 2px;
+            top: 7px;
+            z-index: 4;
+        }
+        .eyebrow.left  { left: 4px;  transform: rotate(6deg); }
+        .eyebrow.right { left: 16px; transform: rotate(-6deg); }
+
+        /* ── Eyes (realistic) ── */
+        .eye {
+            position: absolute;
+            width: 5px; height: 5px;
+            background: #fff;
+            border-radius: 50%;
+            border: 1px solid #444;
+            top: 10px;
+            overflow: hidden;
+            z-index: 4;
+        }
+        .eye.left  { left: 4px; }
+        .eye.right { left: 16px; }
+        .eye-iris {
+            position: absolute;
+            width: 3px; height: 3px;
+            background: #2a7bd5;
+            border-radius: 50%;
+            top: 1px; left: 1px;
+        }
+        .eye-pupil {
+            position: absolute;
+            width: 1px; height: 1px;
+            background: #000;
+            border-radius: 50%;
+            top: 1px; left: 1px;
+        }
+
+        /* Eye iris tint per head class */
+        .head.c-m1  .eye-iris, .head.c-w1  .eye-iris { background: #7b4f2a; }
+        .head.c-m2  .eye-iris, .head.c-w3  .eye-iris { background: #8a6a2a; }
+        .head.c-m3  .eye-iris, .head.c-w5  .eye-iris, .head.c-wig5 .eye-iris { background: #2c1a0a; }
+        .head.c-m4  .eye-iris, .head.c-wig1 .eye-iris { background: #3a82c4; }
+        .head.c-m5  .eye-iris, .head.c-w2  .eye-iris, .head.c-wig3 .eye-iris { background: #2a8a3a; }
+        .head.c-w4  .eye-iris, .head.c-wig4 .eye-iris { background: #7b4f2a; }
+        .head.c-wig2 .eye-iris { background: #6a2a9a; }
+
+        /* ── Nose ── */
+        .nose {
+            position: absolute;
+            width: 3px; height: 2px;
+            background: rgba(0,0,0,0.25);
+            border-radius: 1px;
+            top: 15px; left: 50%;
+            transform: translateX(-50%);
+            z-index: 4;
+        }
+
+        /* ── Smile ── */
+        .smile {
+            position: absolute;
+            width: 9px; height: 5px;
+            border-bottom: 2px solid rgba(0,0,0,0.5);
+            border-radius: 0 0 8px 8px;
+            top: 17px; left: 50%;
+            transform: translateX(-50%);
+            z-index: 4;
+        }
+
+        /* ── Accessories ── */
+        .accessory {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .a-none { display: none; }
+
+        /* Round glasses */
+        .a-glasses-round::before {
+            content: '';
+            position: absolute;
+            width: 7px; height: 7px;
+            border: 1.5px solid #777;
+            border-radius: 50%;
+            top: 9px; left: 2px;
+            box-shadow: 10px 0 0 0 #777, 10px 0 0 1.5px #777;
+            background: rgba(200,230,255,0.18);
+        }
+
+        /* Rectangular glasses */
+        .a-glasses-rect::before {
+            content: '';
+            position: absolute;
+            width: 7px; height: 5px;
+            border: 1.5px solid #666;
+            border-radius: 1px;
+            top: 10px; left: 2px;
+            box-shadow: 10px 0 0 0 #666, 10px 0 0 1.5px #666;
+            background: rgba(200,230,255,0.12);
+        }
+
+        /* Baseball cap */
+        .a-cap {
+            position: absolute;
+            top: -4px; left: -3px; right: -3px;
+            height: 12px;
+            background: #e74c3c;
+            border-radius: 50% 50% 0 0;
+            border-bottom: 2px solid #c0392b;
+        }
+        .a-cap::before {
+            content: '';
+            position: absolute;
+            bottom: -3px; left: -3px;
+            width: 120%; height: 4px;
+            background: #c0392b;
+            border-radius: 1px;
+        }
+
+        /* Earrings */
+        .a-earrings::before {
+            content: '';
+            position: absolute;
+            width: 3px; height: 4px;
+            background: #FFD700;
+            border-radius: 50% 50% 40% 40%;
+            top: 16px; left: -2px;
+            box-shadow: 26px 0 0 #FFD700;
+        }
+
+        /* Headband */
+        .a-headband {
+            position: absolute;
+            top: 1px; left: -2px; right: -2px;
+            height: 5px;
+            background: #e91e63;
+            border-radius: 50% 50% 0 0;
+            border: 1px solid #c2185b;
+        }
+
+        /* Beret */
+        .a-beret {
+            position: absolute;
+            top: -7px; left: -5px; right: -5px;
+            height: 14px;
+            background: #795548;
+            border-radius: 50%;
+        }
+        .a-beret::before {
+            content: '';
+            position: absolute;
+            bottom: 0; left: -2px; right: -2px;
+            height: 4px;
+            background: #5d4037;
+            border-radius: 0 0 2px 2px;
+        }
+
+        .body {
+            width: 18px;
+            height: 14px;
+            margin-bottom: 2px;
+            border: 1px solid #000;
+            position: relative;
+        }
+
+        /* Arms — hang on each side of the body */
+        .arm {
+            position: absolute;
+            width: 4px;
+            height: 11px;
+            border: 1px solid #000;
+            border-radius: 1px;
+            top: 1px;
+            transform-origin: top center;
+        }
+        .arm.left  { left: -5px; }
+        .arm.right { right: -5px; }
+        .body.costume-1 .arm { background: #4a6fa5; }
+        .body.costume-2 .arm { background: #c9a876; }
+        .body.costume-3 .arm { background: #1a1a1a; }
+        .body.costume-4 .arm { background: #90ee90; }
+        .body.costume-5 .arm { background: #e8d5c4; }
+        .body.costume-6 .arm { background: #cd5c5c; }
+
+        /* Typing animation when the agent is at their desk and "working" */
+        @keyframes typing-left {
+            0%, 100% { transform: rotate(0deg)   translateY(0); }
+            50%      { transform: rotate(-15deg) translateY(-2px); }
+        }
+        @keyframes typing-right {
+            0%, 100% { transform: rotate(0deg)  translateY(0); }
+            50%      { transform: rotate(15deg) translateY(-2px); }
+        }
+        .agent.working .arm.left  { animation: typing-left  0.28s infinite; }
+        .agent.working .arm.right { animation: typing-right 0.28s infinite 0.14s; }
+
+        .body.costume-1 { background: #4a6fa5; }
+        .body.costume-2 { background: #c9a876; }
+        .body.costume-3 { background: #1a1a1a; }
+        .body.costume-4 { background: #90ee90; }
+        .body.costume-5 { background: #e8d5c4; }
+        .body.costume-6 { background: #cd5c5c; }
+
+        /* ── New costume bodies ── */
+        .body.c-m1  { background: #4a6fa5; } .body.c-m1  .arm { background: #4a6fa5; }
+        .body.c-m2  { background: #a0835a; } .body.c-m2  .arm { background: #a0835a; }
+        .body.c-m3  { background: #1a1a2e; } .body.c-m3  .arm { background: #1a1a2e; }
+        .body.c-m4  { background: #2196f3; } .body.c-m4  .arm { background: #2196f3; }
+        .body.c-m5  { background: #4caf50; } .body.c-m5  .arm { background: #4caf50; }
+        .body.c-w1  { background: #90ee90; } .body.c-w1  .arm { background: #90ee90; }
+        .body.c-w2  { background: #ff7eb6; } .body.c-w2  .arm { background: #ff7eb6; }
+        .body.c-w3  { background: #e91e63; } .body.c-w3  .arm { background: #e91e63; }
+        .body.c-w4  { background: #9c27b0; } .body.c-w4  .arm { background: #9c27b0; }
+        .body.c-w5  { background: #ff9800; } .body.c-w5  .arm { background: #ff9800; }
+        .body.c-wig1 { background: #795548; } .body.c-wig1 .arm { background: #795548; }
+        .body.c-wig2 { background: #3f51b5; } .body.c-wig2 .arm { background: #3f51b5; }
+        .body.c-wig3 { background: #e91e63; } .body.c-wig3 .arm { background: #e91e63; }
+        .body.c-wig4 { background: #607d8b; } .body.c-wig4 .arm { background: #607d8b; }
+        .body.c-wig5 { background: #ff5722; } .body.c-wig5 .arm { background: #ff5722; }
+
+        .legs {
+            width: 18px;
+            height: 14px;
+            display: flex;
+            gap: 2px;
+            justify-content: center;
+        }
+
+        .leg {
+            width: 3px;
+            height: 14px;
+            background: #333;
+            border-radius: 1px;
+        }
+
+        .agent-name {
+            position: absolute;
+            bottom: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 7px;
+            color: #fff;
+            text-shadow: 1px 1px 2px #000;
+            white-space: nowrap;
+            font-weight: bold;
+        }
+
+        .status-dot {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            top: 1px;
+            right: 1px;
+            background: #999;
+        }
+
+        /* Right Sidebar */
+        .sidebar-right {
+            width: 150px;
+            background: #0f0f1e;
+            border-left: 2px solid #FFD700;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            gap: 15px;
+        }
+
+        .sidebar-btn {
+            padding: 12px;
+            background: #2a2a3e;
+            border: 2px solid #FFD700;
+            color: #FFD700;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .sidebar-btn:hover {
+            background: #FFD700;
+            color: #1a1a2e;
+        }
+
+        /* Bottom Toolbar */
+        .toolbar-bottom {
+            height: 60px;
+            background: #2a2a3e;
+            border-top: 2px solid #FFD700;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            gap: 20px;
+        }
+
+        .toolbar-left {
+            display: flex;
+            gap: 10px;
+        }
+
+        .toolbar-btn {
+            padding: 8px 15px;
+            background: #1a1a2e;
+            border: 2px solid #FFD700;
+            color: #FFD700;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .toolbar-btn:hover {
+            background: #FFD700;
+            color: #1a1a2e;
+        }
+
+        .toolbar-btn.active {
+            background: #FFD700;
+            color: #1a1a2e;
+        }
+
+        .control-panel {
+            display: flex;
+            gap: 15px;
+            flex: 1;
+            justify-content: flex-end;
+        }
+
+        .input-pair {
+            padding: 8px 12px;
+            background: #1a1a2e;
+            border: 2px solid #4CAF50;
+            border-radius: 3px;
+            color: #4CAF50;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+            width: 120px;
+        }
+
+        .btn-start {
+            padding: 8px 15px;
+            background: #2196F3;
+            border: 2px solid #0b7dda;
+            color: #fff;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .btn-start:hover {
+            background: #0b7dda;
+        }
+
+        .metrics-display {
+            display: flex;
+            gap: 15px;
+            color: #FFD700;
+            font-size: 11px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+
+        .metric {
+            background: #1a1a2e;
+            padding: 5px 10px;
+            border: 1px solid #FFD700;
+            border-radius: 2px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #2a2a3e;
+            border: 3px solid #FFD700;
+            border-radius: 8px;
+            padding: 20px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #FFD700;
+        }
+
+        .modal-title {
+            color: #FFD700;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .modal-close {
+            background: #FFD700;
+            border: none;
+            color: #2a2a3e;
+            width: 25px;
+            height: 25px;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+
+        .modal-close:hover {
+            background: #ffed4e;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-label {
+            color: #FFD700;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .form-input {
+            padding: 10px;
+            background: #1a1a2e;
+            border: 2px solid #FFD700;
+            color: #FFD700;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .btn-add {
+            padding: 10px;
+            background: #4CAF50;
+            border: 2px solid #45a049;
+            color: #fff;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .btn-add:hover {
+            background: #45a049;
+        }
+
+        .agent-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .agent-item {
+            background: #1a1a2e;
+            border: 2px solid #FFD700;
+            padding: 12px;
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #FFD700;
+            font-size: 12px;
+        }
+
+        .agent-item-btn {
+            padding: 5px 10px;
+            background: #f44336;
+            border: 1px solid #d32f2f;
+            color: #fff;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 10px;
+        }
+
+        .costume-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .costume-option {
+            text-align: center;
+            cursor: pointer;
+            padding: 10px;
+            border: 2px solid #FFD700;
+            border-radius: 5px;
+            background: #1a1a2e;
+            transition: all 0.2s;
+        }
+
+        .costume-option:hover {
+            background: #FFD700;
+        }
+
+        .costume-preview {
+            width: 60px;
+            height: 80px;
+            background: #2a2a3e;
+            margin: 0 auto 10px;
+            border: 1px solid #FFD700;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+
+        .costume-name {
+            color: #FFD700;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .settings-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #1a1a2e;
+            border: 1px solid #FFD700;
+            border-radius: 3px;
+            color: #FFD700;
+            font-size: 12px;
+        }
+
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .setting-btn {
+            padding: 8px 12px;
+            background: #2196F3;
+            border: 1px solid #0b7dda;
+            color: #fff;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 10px;
+        }
+
+        .setting-btn:hover {
+            background: #0b7dda;
+        }
+
+        @keyframes walk {
+            0%, 100% { transform: translateX(0) translateY(0); }
+            25% { transform: translateX(-3px) translateY(-2px); }
+            50% { transform: translateX(0) translateY(0); }
+            75% { transform: translateX(3px) translateY(-2px); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+
+        /* Sitting — agent drops slightly so body tucks behind seat/table */
+        @keyframes sitting {
+            from { transform: translateY(0)   scaleY(1); }
+            to   { transform: translateY(10px) scaleY(0.92); }
+        }
+        /* Desk-sit — similar but slightly more forward lean */
+        @keyframes desk-sit-anim {
+            from { transform: translateY(0); }
+            to   { transform: translateY(8px); }
+        }
+        /* When seated, hide the legs/feet completely — chair / desk covers them. */
+        .agent.sitting   .legs,
+        .agent.couch-sit .legs,
+        .agent.desk-sit  .legs { display: none !important; }
+
+        .agent.walking {
+            animation: walk 1.2s infinite;
+        }
+
+        .agent.working {
+            animation: pulse 0.5s infinite;
+        }
+
+        .agent.sitting  { animation: sitting        0.35s ease-out forwards; }
+        .agent.desk-sit { animation: desk-sit-anim 0.35s ease-out forwards; }
+
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #2a2a3e;
+            border: 2px solid #4CAF50;
+            color: #4CAF50;
+            padding: 15px 20px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+            z-index: 2000;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        /* Doors — one per office room, sitting on the top edge */
+        .door {
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 36px;
+            height: 16px;
+            background: linear-gradient(180deg, #6b3410 0%, #4a2207 100%);
+            border: 2px solid #2e1604;
+            border-radius: 3px 3px 0 0;
+            transform-origin: left center;
+            transition: transform 0.45s ease-in-out;
+            z-index: 5;
+            box-shadow: inset 0 0 4px #2e1604;
+        }
+
+        .door::after {
+            content: '';
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            width: 3px;
+            height: 3px;
+            border-radius: 50%;
+            background: #ffd700;
+            transform: translateY(-50%);
+        }
+
+        .door.open {
+            transform: translateX(-50%) rotateY(-100deg);
+        }
+
+        .door-frame {
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 18px;
+            border: 2px solid #ffd700;
+            border-radius: 4px 4px 0 0;
+            background: #000;
+            z-index: 4;
+        }
+
+        /* Left-edge door variant (used by Trading-Room) */
+        .door.left-edge {
+            top: 50%;
+            left: -8px;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 36px;
+            transform-origin: top center;
+            border-radius: 0 3px 3px 0;
+        }
+        .door.left-edge::after {
+            right: 3px;
+            top: 50%;
+        }
+        .door.left-edge.open {
+            transform: translateY(-50%) rotateX(-100deg);
+        }
+        .door-frame.left-edge {
+            top: 50%;
+            left: -8px;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 40px;
+            border-radius: 0 4px 4px 0;
+        }
+
+        /* Trading-Room (top-right area) */
+        .room-main {
+            background:
+                repeating-linear-gradient(0deg, #b89466 0px, #b89466 18px, #a07c4f 18px, #a07c4f 36px),
+                repeating-linear-gradient(90deg, #b89466 0px, #b89466 18px, #a07c4f 18px, #a07c4f 36px);
+            background-size: 36px 36px;
+            border: 2px solid #5a3d20;
+        }
+        /* Kitchen appliances */
+        .stove {
+            width: 50px; height: 38px;
+            background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+            border: 2px solid #000;
+            border-radius: 3px;
+            position: relative;
+            box-shadow: inset 0 -3px 0 rgba(0,0,0,0.4);
+        }
+        .stove .burner {
+            position: absolute;
+            width: 14px; height: 14px;
+            background: radial-gradient(circle, #444 0%, #1a1a1a 70%);
+            border: 1px solid #555;
+            border-radius: 50%;
+        }
+        .stove .burner.tl { top: 4px;    left: 4px; }
+        .stove .burner.tr { top: 4px;    right: 4px; }
+        .stove .burner.bl { bottom: 4px; left: 4px; }
+        .stove .burner.br { bottom: 4px; right: 4px; }
+        .stove .burner.lit::after {
+            content: '';
+            position: absolute;
+            inset: 3px;
+            border-radius: 50%;
+            background: #ff5500;
+            box-shadow: 0 0 6px #ff8800;
+            animation: flame 0.6s infinite alternate;
+        }
+        @keyframes flame { from { opacity: 0.6; } to { opacity: 1; } }
+
+        .range-hood {
+            width: 60px; height: 14px;
+            background: linear-gradient(180deg, #d0d0d0, #909090);
+            border: 2px solid #555;
+            border-radius: 3px 3px 5px 5px;
+            position: relative;
+        }
+        .range-hood::after {
+            content: '';
+            position: absolute;
+            bottom: -3px; left: 50%;
+            transform: translateX(-50%);
+            width: 36px; height: 3px;
+            background: #555;
+            border-radius: 1px;
+        }
+
+        .microwave {
+            width: 40px; height: 24px;
+            background: linear-gradient(180deg, #3a3a3a, #1a1a1a);
+            border: 2px solid #000;
+            border-radius: 2px;
+            position: relative;
+            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.4);
+        }
+        .microwave::before {
+            content: '';
+            position: absolute;
+            top: 3px; left: 4px;
+            width: 24px; height: 16px;
+            background: linear-gradient(135deg, #5b9bd5 0%, #2a4d6a 100%);
+            border: 1px solid #000;
+            opacity: 0.8;
+        }
+        .microwave::after {
+            content: '';
+            position: absolute;
+            right: 4px; top: 50%;
+            transform: translateY(-50%);
+            width: 6px; height: 14px;
+            background: #555;
+            border-radius: 1px;
+            box-shadow: 0 0 0 1px #2a2a2a;
+        }
+
+        .kitchen-sink {
+            width: 42px; height: 26px;
+            background: linear-gradient(180deg, #c4c4c4, #a0a0a0);
+            border: 2px solid #555;
+            border-radius: 3px;
+            position: relative;
+        }
+        .kitchen-sink::before {
+            content: '';
+            position: absolute;
+            top: 5px; left: 6px; right: 6px; bottom: 4px;
+            background: #6a8aa0;
+            border: 1px solid #2a4d6a;
+            border-radius: 2px;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
+        }
+        .kitchen-sink::after {
+            content: '';
+            position: absolute;
+            top: -8px; left: 50%;
+            transform: translateX(-50%);
+            width: 4px; height: 10px;
+            background: #888;
+            border: 1px solid #555;
+            border-radius: 2px 2px 0 0;
+            box-shadow:
+                4px 4px 0 -1px #888,
+                4px 5px 0 -1px #555;
+        }
+
+        .cabinet {
+            width: 36px; height: 30px;
+            background: linear-gradient(180deg, #b8956a 0%, #8b6f47 100%);
+            border: 2px solid #5a3d20;
+            border-radius: 2px;
+            position: relative;
+        }
+        .cabinet::before {
+            content: '';
+            position: absolute;
+            top: 0; bottom: 0; left: 50%;
+            width: 1px;
+            background: #5a3d20;
+        }
+        .cabinet::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 30%;
+            width: 3px; height: 3px;
+            background: #f0d080;
+            border: 1px solid #5a3d20;
+            border-radius: 50%;
+            box-shadow: 18px 0 0 0 #f0d080, 18px 0 0 1px #5a3d20;
+        }
+
+        .cabinet.upper { height: 22px; }
+        .cabinet.lower { height: 36px; }
+
+        .kitchen-island {
+            width: 110px; height: 38px;
+            background: linear-gradient(180deg, #e6e6e6, #b0b0b0);
+            border: 2px solid #555;
+            border-radius: 3px;
+            position: relative;
+            box-shadow: inset 0 -3px 0 rgba(0,0,0,0.18);
+        }
+        .kitchen-island::before {
+            content: '';
+            position: absolute;
+            top: 5px; left: 8px; right: 8px;
+            height: 6px;
+            background: #2a2a2a;
+            border: 1px solid #111;
+            border-radius: 1px;
+        }
+        .kitchen-island::after {
+            content: '🍞🥖🍎';
+            position: absolute;
+            bottom: 3px; left: 50%;
+            transform: translateX(-50%);
+            font-size: 9px;
+            letter-spacing: 1px;
+        }
+
+        /* Extra cafeteria furniture */
+        .coffee-machine {
+            width: 26px; height: 32px;
+            background: #2a2a2a;
+            border: 2px solid #111;
+            border-radius: 3px 3px 2px 2px;
+            position: relative;
+        }
+        .coffee-machine::before {
+            content: '';
+            position: absolute;
+            top: 8px; left: 5px;
+            width: 14px; height: 5px;
+            background: #5a3a1a;
+            border-radius: 1px;
+        }
+        .coffee-machine::after {
+            content: '☕';
+            position: absolute;
+            bottom: 1px; left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+        }
+
+        .vending-machine {
+            width: 30px; height: 56px;
+            background: #b22;
+            border: 2px solid #7a1010;
+            border-radius: 3px;
+            position: relative;
+        }
+        .vending-machine::before {
+            content: '';
+            position: absolute;
+            top: 5px; left: 4px; right: 4px;
+            height: 28px;
+            background: #2a4d6a;
+            border: 1px solid #000;
+        }
+        .vending-machine::after {
+            content: '🥤';
+            position: absolute;
+            bottom: 3px; left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+        }
+
+        .water-cooler {
+            width: 18px; height: 36px;
+            background: #c0d8e8;
+            border: 2px solid #5a8090;
+            border-radius: 3px 3px 2px 2px;
+            position: relative;
+        }
+        .water-cooler::before {
+            content: '';
+            position: absolute;
+            top: 4px; left: 3px; right: 3px;
+            height: 14px;
+            background: #5b9bd5;
+            border-radius: 50% 50% 30% 30%;
+            opacity: 0.8;
+        }
+        .water-cooler::after {
+            content: '';
+            position: absolute;
+            bottom: 4px; left: 50%;
+            width: 4px; height: 4px;
+            background: #4a4a4a;
+            border-radius: 50%;
+            transform: translateX(-50%);
+        }
+
+        .trash-can {
+            width: 14px; height: 18px;
+            background: #555;
+            border: 2px solid #2a2a2a;
+            border-radius: 3px 3px 1px 1px;
+            position: relative;
+        }
+        .trash-can::before {
+            content: '';
+            position: absolute;
+            top: -3px; left: -1px;
+            width: calc(100% + 2px); height: 3px;
+            background: #2a2a2a;
+            border-radius: 2px;
+        }
+
+        .wall-clock {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid #2e2e2e;
+            position: relative;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+        }
+        .wall-clock::before {
+            content: '';
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 1.5px; height: 8px;
+            background: #000;
+            transform-origin: 50% 100%;
+            transform: translate(-50%, -100%) rotate(40deg);
+        }
+        .wall-clock::after {
+            content: '';
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 1.5px; height: 6px;
+            background: #000;
+            transform-origin: 50% 100%;
+            transform: translate(-50%, -100%) rotate(-110deg);
+        }
+
+        /* Conference table + chairs (Main Office and Cafeteria) */
+        .conference-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+        .conf-table {
+            width: 70px;
+            height: 30px;
+            background: linear-gradient(180deg, #a06b3c 0%, #6b3410 100%);
+            border: 2px solid #2e1604;
+            border-radius: 4px;
+            box-shadow: inset 0 -3px 0 rgba(0,0,0,0.25);
+        }
+        .conf-table.wide { width: 130px; height: 36px; }
+        .conf-chair {
+            width: 12px;
+            height: 8px;
+            background: #1a1a1a;
+            border: 1px solid #000;
+            border-radius: 1px;
+            position: absolute;
+        }
+        .conf-chair.top    { top: -10px; left: 14px; }
+        .conf-chair.top.right    { top: -10px; left: auto; right: 14px; }
+        .conf-chair.bottom { bottom: -10px; left: 14px; }
+        .conf-chair.bottom.right { bottom: -10px; left: auto; right: 14px; }
+        .conf-chair.side-left  { left: -12px; top: 50%; transform: translateY(-50%); width: 8px; height: 12px; }
+        .conf-chair.side-right { right: -12px; top: 50%; transform: translateY(-50%); width: 8px; height: 12px; }
+
+        /* Vertical (flipped) conference table — used in Main Office.
+           The table runs tall, and chairs sit on its long left/right sides. */
+        .conference-area.vertical { display: inline-block; }
+        .conf-table.tall { width: 30px; height: 80px; }
+        .conf-chair.v-top    { top: -10px; left: 50%; transform: translateX(-50%); width: 12px; height: 8px; }
+        .conf-chair.v-bottom { bottom: -10px; left: 50%; transform: translateX(-50%); width: 12px; height: 8px; }
+        .conf-chair.v-side-left  { top: 12px;  left: -12px; width: 8px; height: 12px; }
+        .conf-chair.v-side-left.lower  { top: 50px; }
+        .conf-chair.v-side-right { top: 12px;  right: -12px; width: 8px; height: 12px; }
+        .conf-chair.v-side-right.lower { top: 50px; }
+
+        /* Status panel */
+        .status-panel {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            width: 230px;
+            max-height: 220px;
+            overflow-y: auto;
+            background: rgba(15, 15, 30, 0.92);
+            border: 2px solid #FFD700;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 11px;
+            color: #FFD700;
+            z-index: 30;
+            font-family: 'Courier New', monospace;
+        }
+
+        .status-panel h4 {
+            color: #FFD700;
+            font-size: 12px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #FFD700;
+            padding-bottom: 4px;
+        }
+
+        .status-row {
+            margin-bottom: 4px;
+            color: #b0e0e6;
+        }
+
+        .status-row b { color: #4CAF50; }
+        .status-row.bad b { color: #f44336; }
+    
+/* === Kitchen Compartment (American style) === */
+.kitchen-compartment {
+    position:absolute;
+    left:0;
+    top:0;
+    width:160px;
+    height:100%;
+    background:#e5e5e5;
+    border-right:4px solid #333;
+    z-index:2;
+}
+
+.kitchen-label {
+    position:absolute;
+    top:6px;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:10px;
+    font-weight:bold;
+    color:#000;
+}
+
+.kitchen-counter {
+    position:absolute;
+    bottom:20px;
+    left:10px;
+    width:140px;
+    height:20px;
+    background:#999;
+}
+
+.kitchen-stove {
+    position:absolute;
+    top:40px;
+    left:10px;
+    width:50px;
+    height:40px;
+    background:#333;
+}
+
+.kitchen-fridge {
+    position:absolute;
+    top:40px;
+    right:10px;
+    width:40px;
+    height:60px;
+    background:#ccc;
+}
+
+/* BLOCK pets from kitchen */
+.kitchen-compartment { pointer-events:none; }
+
+/* ── Activity speech bubble ─────────────────────────────────── */
+.speech-bubble {
+    position: absolute;
+    bottom: 58px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.97);
+    color: #1a1a2e;
+    padding: 3px 8px;
+    border-radius: 9px;
+    font-size: 9px;
+    font-weight: bold;
+    white-space: nowrap;
+    z-index: 25;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+    border: 1.5px solid #FFD700;
+    animation: bubble-pop 0.22s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+.speech-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -6px; left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid rgba(255,255,255,0.97);
+}
+@keyframes bubble-pop {
+    from { opacity:0; transform: translateX(-50%) scale(0.4); }
+    to   { opacity:1; transform: translateX(-50%) scale(1); }
+}
+
+/* ── TV active glow + flicker ────────────────────────────────── */
+.tv.active {
+    box-shadow: 0 0 18px rgba(91,155,213,0.9), 0 0 38px rgba(91,155,213,0.3);
+    transition: box-shadow 0.35s;
+}
+.tv.active::before {
+    animation: tv-flicker 2.8s ease-in-out infinite;
+}
+@keyframes tv-flicker {
+    0%,100% { background: linear-gradient(135deg,#5b9bd5 0%,#2a4d6a 100%); opacity:.85; }
+    18%     { background: linear-gradient(135deg,#80c8f5 0%,#3a6d90 100%); opacity:.97; }
+    36%     { background: linear-gradient(135deg,#4888c0 0%,#1a3a58 100%); opacity:.78; }
+    54%     { background: linear-gradient(135deg,#6ab3e8 0%,#2a5a7a 100%); opacity:.91; }
+    72%     { background: linear-gradient(135deg,#90d8ff 0%,#4a80a0 100%); opacity:.88; }
+    88%     { background: linear-gradient(135deg,#3880b8 0%,#124060 100%); opacity:.82; }
+}
+
+/* ── Status dot ─────────────────────────────────────────────── */
+.status-dot { transition: background 0.35s; }
+.status-dot.s-idle    { background: #4CAF50; }
+.status-dot.s-moving  { background: #2196F3; animation: dot-pulse 0.9s infinite; }
+.status-dot.s-working { background: #FF9800; animation: dot-pulse 0.45s infinite; }
+.status-dot.s-resting { background: #9C27B0; }
+.status-dot.s-break   { background: #00BCD4; }
+@keyframes dot-pulse {
+    0%,100% { opacity:1; box-shadow:0 0 0 2px rgba(255,255,255,0.2); }
+    50%     { opacity:0.35; box-shadow:none; }
+}
+
+/* ── Monitor active glow ────────────────────────────────────── */
+.monitor.active::after {
+    background: linear-gradient(135deg,#00c8ff 0%,#0050ff 100%);
+    animation: monitor-glow 1.8s ease-in-out infinite alternate;
+}
+@keyframes monitor-glow {
+    from { box-shadow:0 0 4px rgba(0,200,255,0.4); }
+    to   { box-shadow:0 0 14px rgba(0,200,255,0.98), 0 0 28px rgba(0,200,255,0.3); }
+}
+
+/* ── Leg bob while walking ──────────────────────────────────── */
+@keyframes leg-bob {
+    0%,100% { transform: skewX(0deg); }
+    25%     { transform: skewX(-10deg) translateY(-1px); }
+    75%     { transform: skewX(10deg)  translateY(-1px); }
+}
+.agent.walking .legs { animation: leg-bob 0.36s infinite; }
+
+/* ── Floating Zzz while napping ─────────────────────────────── */
+@keyframes nap-zzz {
+    0%   { opacity:0; transform:translate(-50%,-2px) scale(0.7); }
+    50%  { opacity:1; transform:translate(-50%,-10px) scale(1.1); }
+    100% { opacity:0; transform:translate(-50%,-18px) scale(0.8); }
+}
+.zzz-float {
+    position:absolute;
+    bottom:62px; left:50%;
+    transform:translateX(-50%);
+    font-size:12px; color:#9C27B0;
+    pointer-events:none; z-index:25;
+    animation: nap-zzz 2.2s ease-in-out infinite;
+}
+
+/* ── Coffee steam ───────────────────────────────────────────── */
+@keyframes steam-rise {
+    0%   { opacity:0.7; transform:translateX(-50%) translateY(0) scale(1); }
+    100% { opacity:0;   transform:translateX(-50%) translateY(-16px) scale(1.8); }
+}
+.steam-dot {
+    position:absolute;
+    width:5px; height:5px; border-radius:50%;
+    background:rgba(255,255,255,0.75);
+    pointer-events:none;
+    animation: steam-rise 1.3s ease-out infinite;
+    left:50%; transform:translateX(-50%);
+}
+.steam-dot.s2 { animation-delay:0.43s; }
+.steam-dot.s3 { animation-delay:0.86s; }
+
+/* ── Room active highlight ──────────────────────────────────── */
+.room.room-lit { box-shadow: inset 0 0 22px rgba(255,215,0,0.13); transition: box-shadow 0.5s; }
+
+/* ── Real-time wall clock (uses JS-driven CSS vars) ─────────── */
+.wall-clock-live {
+    width:24px; height:24px;
+    border-radius:50%; background:#fff;
+    border:2px solid #2e2e2e;
+    position:relative;
+    box-shadow:0 1px 3px rgba(0,0,0,0.35);
+}
+.clock-hand {
+    position:absolute;
+    bottom:50%; left:50%;
+    transform-origin:bottom center;
+    border-radius:2px;
+    background:#000;
+}
+.clock-h { width:2px; height:7px; margin-left:-1px; }
+.clock-m { width:1.5px; height:9px; margin-left:-0.75px; }
+.clock-s { width:1px; height:10px; margin-left:-0.5px; background:#f00; }
+
+/* ── Couch-sit posture ──────────────────────────────────────── */
+.agent.couch-sit { animation: couch-settle 0.35s forwards; }
+@keyframes couch-settle { to { transform:translateY(8px); } }
+
+/* ── Agency title ticker strip ──────────────────────────────── */
+.title-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 18px;
+}
+.title-live {
+    font-size: 11px; font-weight: bold; color: #FFD700;
+    font-family: 'Courier New', monospace;
+    opacity: 0.92;
+}
+
+</style>
+</head>
+<body>
+    <div class="agency-title title-bar">
+        <span style="font-size:13px;opacity:0.7;">📊</span>
+        TECHNOBIZTRADER AGENCY
+        <span class="title-live" id="live-clock">--:--:-- UTC</span>
+    </div>
+    <div class="layout">
+        <div class="main-content">
+            <!-- Left Sidebar -->
+            <div class="sidebar-left">
+                <button class="zoom-btn">+</button>
+                <button class="zoom-btn">−</button>
+            </div>
+
+            <!-- Center Office -->
+            <div class="office-container">
+                <div class="office" id="office">
+                    <!-- KITCHEN — bottom-edge door opens to hallway.
+                         Back wall: upper cabinets + range hood, then a counter
+                         row with fridge, stove, microwave, sink, base cabinets.
+                         Middle: kitchen island. Right: dining + snack table. -->
+                    <div class="cafeteria" id="cafeteria">
+                        <div class="door-frame bottom-edge"></div>
+                        <div class="door bottom-edge" id="door-cafe"></div>
+                        <div class="cafeteria-label">🍳 KITCHEN</div>
+
+                        <!-- Live wall clock -->
+                        <div class="wall-clock-live" id="kitchen-clock" style="position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:1;">
+                            <div class="clock-hand clock-h" id="ck-h"></div>
+                            <div class="clock-hand clock-m" id="ck-m"></div>
+                            <div class="clock-hand clock-s" id="ck-s"></div>
+                        </div>
+
+                        <!-- Upper cabinets row + range hood -->
+                        <div class="cabinet upper" style="position:absolute; left:14px;  top:34px; z-index:1;"></div>
+                        <div class="cabinet upper" style="position:absolute; left:54px;  top:34px; z-index:1;"></div>
+                        <div class="range-hood"    style="position:absolute; left:104px; top:30px; z-index:1;"></div>
+                        <div class="cabinet upper" style="position:absolute; left:170px; top:34px; z-index:1;"></div>
+                        <div class="cabinet upper" style="position:absolute; left:212px; top:34px; z-index:1;"></div>
+                        <div class="cabinet upper" style="position:absolute; left:254px; top:34px; z-index:1;"></div>
+
+                        <!-- Lower row: fridge, base cabinets, stove, microwave, sink, coffee -->
+                        <div class="fridge"         style="position:absolute; left:14px;  top:62px;  z-index:1;"></div>
+                        <div class="cabinet lower"  style="position:absolute; left:54px;  top:74px;  z-index:1;"></div>
+                        <div class="stove"          style="position:absolute; left:108px; top:74px;  z-index:1;">
+                            <div class="burner tl lit"></div>
+                            <div class="burner tr"></div>
+                            <div class="burner bl"></div>
+                            <div class="burner br"></div>
+                        </div>
+                        <div class="microwave"      style="position:absolute; left:166px; top:80px;  z-index:1;"></div>
+                        <div class="cabinet lower"  style="position:absolute; left:212px; top:74px;  z-index:1;"></div>
+                        <div class="kitchen-sink"   style="position:absolute; left:254px; top:80px;  z-index:1;"></div>
+                        <div class="coffee-machine" style="position:absolute; left:300px; top:78px;  z-index:1;"></div>
+
+                        <!-- Middle: kitchen island + water cooler -->
+                        <div class="water-cooler"   style="position:absolute; left:14px;  top:140px;"></div>
+                        <div class="kitchen-island" style="position:absolute; left:42px;  top:140px;"></div>
+
+                        <!-- Dining: long table with chairs around it -->
+                        <div class="conference-area cafe-conf"
+                             style="position:absolute; right:22%; top:64%; transform:translate(50%,-50%);">
+                            <div class="conf-chair top"          data-seat="c-top1"></div>
+                            <div class="conf-chair top right"    data-seat="c-top2"></div>
+                            <div class="conf-table wide"></div>
+                            <div class="conf-chair bottom"       data-seat="c-bot1"></div>
+                            <div class="conf-chair bottom right" data-seat="c-bot2"></div>
+                            <div class="conf-chair side-left"    data-seat="c-left"></div>
+                            <div class="conf-chair side-right"   data-seat="c-right"></div>
+                        </div>
+
+                        <!-- Right wall: vending + small snack table -->
+                        <div class="vending-machine" style="position:absolute; right:14px; top:34px;  z-index:1;"></div>
+                        <div class="cafe-table"      style="position:absolute; right:54px; top:48px;">
+                            <div class="cafe-chair"></div>
+                            <div class="cafe-chair"></div>
+                        </div>
+
+                        <!-- Plants + trash -->
+                        <div class="plant"     style="position:absolute; left:14px;  bottom:22px;"></div>
+                        <div class="plant"     style="position:absolute; right:14px; bottom:22px;"></div>
+                        <div class="trash-can" style="position:absolute; right:62px; bottom:26px;"></div>
+
+                        <!-- Pet food plates (top-right, away from doors) -->
+                        <div class="food-plate cat" id="plate-cat">🐟<span class="food-plate-label">CAT</span></div>
+                        <div class="food-plate dog" id="plate-dog">🦴<span class="food-plate-label">DOG</span></div>
+                    </div>
+
+                    <!-- Vertical hallway — narrow corridor connecting kitchen and
+                         breakroom; opens into the main hallway below. -->
+                    <div class="vertical-hallway" id="vertical-hallway"></div>
+
+                    <!-- Breakroom — couch, TV, coffee table for relaxing. -->
+                    <div class="room room-breakroom" id="breakroom">
+                        <div class="door-frame bottom-edge"></div>
+                        <div class="door bottom-edge" id="door-break"></div>
+                        <div class="room-label" style="color:#1a1a2e;text-shadow:none;">🛋 BREAKROOM</div>
+                        <div class="tv"        style="position:absolute; top:30px; left:50%; transform:translateX(-50%);"></div>
+                        <div class="couch"     style="position:absolute; top:78px; left:50%; transform:translateX(-50%);"></div>
+                        <div class="coffee-table" style="position:absolute; top:112px; left:50%; transform:translateX(-50%);"></div>
+                        <div class="plant"     style="position:absolute; bottom:24px; left:14px;"></div>
+                        <div class="plant"     style="position:absolute; bottom:24px; right:14px;"></div>
+                    </div>
+
+                    <!-- Main Office — top row, col 5. Agents spawn here and idle.
+                         Door is on the bottom edge, opening into the hallway below.
+                         Conference table is VERTICAL (flipped horizontally vs cafeteria). -->
+                    <div class="room room-main" id="main-office">
+                        <div class="door-frame bottom-edge"></div>
+                        <div class="door bottom-edge" id="door-main"></div>
+                        <div class="room-label" style="color:#1a1a2e;text-shadow:none;">🏢 MAIN OFFICE</div>
+                        <div class="conference-area vertical" style="margin-top:24px;position:relative;">
+                            <div class="conf-chair v-top"     data-seat="m-vtop"></div>
+                            <div class="conf-chair v-side-left"  data-seat="m-vleft1"></div>
+                            <div class="conf-chair v-side-left lower"  data-seat="m-vleft2"></div>
+                            <div class="conf-chair v-side-right" data-seat="m-vright1"></div>
+                            <div class="conf-chair v-side-right lower" data-seat="m-vright2"></div>
+                            <div class="conf-table tall"></div>
+                            <div class="conf-chair v-bottom"  data-seat="m-vbot"></div>
+                        </div>
+                    </div>
+
+                    <!-- Trend Room -->
+                    <div class="room room-trend" id="trend-room">
+                        <div class="door-frame"></div>
+                        <div class="door" id="door-trend"></div>
+                        <div class="room-label">🧠 TREND</div>
+                        <div class="desk-setup">
+                            <div class="monitor"></div>
+                            <div class="desk-top"></div>
+                            <div class="chair">
+                                <div class="chair-leg"></div>
+                                <div class="chair-leg"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analyse Room -->
+                    <div class="room room-analyse" id="analyse-room">
+                        <div class="door-frame"></div>
+                        <div class="door" id="door-analyse"></div>
+                        <div class="room-label">🔍 ANALYSE</div>
+                        <div class="desk-setup">
+                            <div class="monitor"></div>
+                            <div class="desk-top"></div>
+                            <div class="chair">
+                                <div class="chair-leg"></div>
+                                <div class="chair-leg"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Trader Room -->
+                    <div class="room room-trader" id="trader-room">
+                        <div class="door-frame"></div>
+                        <div class="door" id="door-trader"></div>
+                        <div class="room-label">💰 TRADER</div>
+                        <div class="desk-setup">
+                            <div class="monitor"></div>
+                            <div class="desk-top"></div>
+                            <div class="chair">
+                                <div class="chair-leg"></div>
+                                <div class="chair-leg"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hallway — spans all columns between top and bottom rows.
+                         Every room (cafeteria, main-office, trend, analyse, trader, restroom)
+                         has a door opening onto this corridor. -->
+                    <div class="hallway" id="hallway"></div>
+
+                    <!-- Vertical hallway segment between Trend and Analyse (row 3 only).
+                         Visually separates the two offices and joins the main hallway above. -->
+                    <div class="vertical-hallway-2" id="vertical-hallway-2"></div>
+
+                    <!-- Restroom (no pets allowed) -->
+                    <div class="room room-restroom" id="restroom">
+                        <div class="door-frame"></div>
+                        <div class="door" id="door-restroom"></div>
+                        <div class="room-label" style="color:#1a1a2e;text-shadow:none;">🚻 RESTROOM</div>
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:24px;">
+                            <div class="toilet" id="toilet">
+                                <div class="toilet-tank"></div>
+                                <div class="toilet-lid"></div>
+                            </div>
+                            <div class="sink" id="sink"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Live status panel — sibling of #office so the zoom button
+                     scales the office only and never the status panel. -->
+                <div class="status-panel" id="statusPanel">
+                    <h4>📡 Cycle Status</h4>
+                    <div id="statusBody" class="status-row">Idle — click START CYCLE</div>
+                </div>
+            </div>
+
+            <!-- Right Sidebar -->
+            <div class="sidebar-right">
+                <div class="sidebar-btn" onclick="openModal('usage')">Usage</div>
+                <div class="sidebar-btn" onclick="openModal('tasks')">Tasks</div>
+                <div class="sidebar-btn" onclick="openModal('assign')">Assign</div>
+                <div class="sidebar-btn" onclick="openModal('credentials')">⚙ Settings</div>
+            </div>
+        </div>
+
+        <!-- Bottom Toolbar -->
+        <div class="toolbar-bottom">
+            <div class="toolbar-left">
+                <button class="toolbar-btn" onclick="openModal('agent')">+ Agent</button>
+                <button class="toolbar-btn active" onclick="openModal('layout')">Layout</button>
+                <button class="toolbar-btn" onclick="openModal('seats')">Seats</button>
+                <button class="toolbar-btn" onclick="openModal('costume')">Costume</button>
+                <button class="toolbar-btn" onclick="openModal('settings')">Settings</button>
+            </div>
+
+            <div class="control-panel">
+                <input type="text" class="input-pair" id="pair-input" placeholder="Enter pair" value="EURUSD">
+                <button class="btn-start" onclick="startCycle()">START CYCLE</button>
+                <div class="metrics-display">
+                    <div class="metric">Cycles: <span id="cycles">0</span></div>
+                    <div class="metric">Trades: <span id="trades">0</span></div>
+                    <div class="metric">Rate: <span id="winrate">—</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Add Agent Modal -->
+    <div class="modal" id="agentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">+ Add Agent</div>
+                <button class="modal-close" onclick="closeModal('agent')">×</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Role (assigns the office)</label>
+                <select class="form-input" id="agentRole">
+                    <option value="trend">🧠 Trend-Master  (room: Trend)</option>
+                    <option value="analyse">🔍 Analyse-Master  (room: Analyse)</option>
+                    <option value="trader">💰 Trader-Master  (room: Trader)</option>
+                    <option value="custom">👤 Custom (cafeteria only)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Display Name</label>
+                <input type="text" class="form-input" id="agentName" placeholder="e.g. Trend-Master">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Costume</label>
+                <select class="form-input" id="agentCostume">
+                    <optgroup label="— Men —">
+                        <option value="c-m1">Blue Suit</option>
+                        <option value="c-m2">Khaki Man</option>
+                        <option value="c-m3">Dark Suit</option>
+                        <option value="c-m4">Cap Guy</option>
+                        <option value="c-m5">Glasses Man</option>
+                    </optgroup>
+                    <optgroup label="— Women —">
+                        <option value="c-w1">Brown Hair</option>
+                        <option value="c-w2">Blonde Queen</option>
+                        <option value="c-w3">Red Dress</option>
+                        <option value="c-w4">Bun &amp; Band</option>
+                        <option value="c-w5">Afro Woman</option>
+                    </optgroup>
+                    <optgroup label="— Wigs —">
+                        <option value="c-wig1">Red Wig</option>
+                        <option value="c-wig2">Purple Wig</option>
+                        <option value="c-wig3">Pink Wig</option>
+                        <option value="c-wig4">Gold Wig + Glasses</option>
+                        <option value="c-wig5">Afro Wig + Beret</option>
+                    </optgroup>
+                </select>
+            </div>
+            <button class="btn-add" onclick="addAgent()">Add Agent</button>
+            <div style="margin-top: 20px; border-top: 2px solid #FFD700; padding-top: 15px;">
+                <div style="color: #FFD700; font-weight: bold; margin-bottom: 10px;">Active Agents</div>
+                <div class="agent-list" id="activeAgentsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Credentials / Settings Modal -->
+    <div class="modal" id="credentialsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">⚙ Settings — Data Provider Credentials</div>
+                <button class="modal-close" onclick="closeModal('credentials')">×</button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Provider</label>
+                <select class="form-input" id="credProvider" onchange="renderCredentialsFields()">
+                    <option value="claude">Claude AI (Anthropic)</option>
+                    <option value="mt5">MetaTrader 5</option>
+                    <option value="mt4">MetaTrader 4</option>
+                    <option value="tradingview">TradingView</option>
+                    <option value="telegram">Telegram (signal broadcast)</option>
+                </select>
+            </div>
+
+            <div id="credentialsFields"></div>
+
+            <button class="btn-add" onclick="saveCredentials()">Save & Connect</button>
+            <button id="telegramTestBtn" class="btn-add" onclick="testTelegram()" style="display:none;margin-left:8px;background:#1a6b9a;">📡 Send Test</button>
+
+            <div id="credentialsResult" style="margin-top: 12px; font-size: 12px; color: #FFD700;"></div>
+        </div>
+    </div>
+
+    <!-- Layout Modal -->
+    <div class="modal" id="layoutModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Layout</div>
+                <button class="modal-close" onclick="closeModal('layout')">×</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Coming Soon - Add/Remove Furniture</label>
+                <button class="btn-add">Add Furniture</button>
+                <button class="btn-add" style="background: #f44336; border-color: #d32f2f; margin-top: 10px;">Remove Furniture</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seats Modal -->
+    <div class="modal" id="seatsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Assign Seats</div>
+                <button class="modal-close" onclick="closeModal('seats')">×</button>
+            </div>
+            <div id="seatsContent" class="form-group"></div>
+        </div>
+    </div>
+
+    <!-- Costume Modal -->
+    <div class="modal" id="costumeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Choose Costume</div>
+                <button class="modal-close" onclick="closeModal('costume')">×</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Select Agent</label>
+                <select class="form-input" id="costumeAgent" onchange="loadCostumes()"></select>
+            </div>
+            <div class="costume-grid" id="costumeGrid"></div>
+            <div style="margin-top: 15px;">
+                <div style="color: #FFD700; font-weight: bold; margin-bottom: 10px;">Hue Shift 50°</div>
+                <input type="range" style="width: 100%; cursor: pointer;" min="0" max="360" value="0">
+            </div>
+        </div>
+    </div>
+
+    <!-- Usage Modal -->
+    <div class="modal" id="usageModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Usage Guide</div>
+                <button class="modal-close" onclick="closeModal('usage')">×</button>
+            </div>
+            <div style="color: #FFD700; font-size: 13px; line-height: 1.8;">
+                <div style="margin-bottom: 15px;"><strong>1. Add Core Agents</strong><br>Click "+ Agent" and add these 3 agents:</div>
+                <div style="background: #1a1a2e; padding: 10px; margin-bottom: 15px; border-left: 3px solid #4CAF50;">
+                    • <strong>Trend-Master</strong> (Costume: Classic)<br>
+                    • <strong>Analyse-Master</strong> (Costume: Worker)<br>
+                    • <strong>Trader-Master</strong> (Costume: Dark)
+                </div>
+                <div style="margin-bottom: 15px;"><strong>2. Select Trading Pair</strong><br>Enter a pair (EURUSD, BTCUSD, etc.)</div>
+                <div style="margin-bottom: 15px;"><strong>3. Start Trading Cycle</strong><br>Click "START CYCLE" to begin. All 3 agents must be visible in the cafeteria.</div>
+                <div style="margin-bottom: 15px;"><strong>4. Watch the Workflow</strong><br>• Agents leave cafeteria<br>• Walk to their room (1.5s)<br>• Work at desk (10s)<br>• Return to cafeteria</div>
+                <div style="color: #2196F3;"><strong>💡 Tip:</strong> Use Zoom (+/-) to adjust view size</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tasks Modal -->
+    <div class="modal" id="tasksModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Agent Task Status</div>
+                <button class="modal-close" onclick="closeModal('tasks')">×</button>
+            </div>
+            <div id="tasksContent" style="color: #FFD700; font-size: 13px; line-height: 1.8;"></div>
+        </div>
+    </div>
+
+    <!-- Assign Task Modal -->
+    <div class="modal" id="assignModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Assign Task to Agent</div>
+                <button class="modal-close" onclick="closeModal('assign')">×</button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Select Agent</label>
+                <select class="form-input" id="assignAgent" onchange="updateTaskOptions()">
+                    <option value="">-- Click on an agent first --</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Select Task</label>
+                <select class="form-input" id="assignTask">
+                    <option value="">-- Choose a task --</option>
+                    <option value="analyze-trend">📊 Analyze Market Trend</option>
+                    <option value="detect-patterns">🔍 Detect ICT Patterns</option>
+                    <option value="execute-trade">💰 Execute Trade</option>
+                </select>
+            </div>
+
+            <button class="btn-add" onclick="assignTask()">Assign Task</button>
+
+            <div style="margin-top: 20px; border-top: 2px solid #FFD700; padding-top: 15px;">
+                <div style="color: #FFD700; font-weight: bold; margin-bottom: 10px;">📋 Assigned Tasks</div>
+                <div id="assignedTasksList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Settings</div>
+                <button class="modal-close" onclick="closeModal('settings')">×</button>
+            </div>
+            <div class="settings-list">
+                <button class="setting-btn" onclick="showNotification('Opening Sessions Folder...')">Open Sessions Folder</button>
+                <button class="setting-btn" onclick="showNotification('Exporting Layout...')">Export Layout</button>
+                <button class="setting-btn" onclick="showNotification('Importing Layout...')">Import Layout</button>
+                <div class="setting-item">
+                    <span>Sound Notifications</span>
+                    <input type="checkbox" class="checkbox" checked>
+                </div>
+                <div class="setting-item">
+                    <span>Achievements</span>
+                    <input type="checkbox" class="checkbox" checked>
+                </div>
+                <div class="setting-item">
+                    <span>▶ Office Pets</span>
+                    <input type="checkbox" class="checkbox" checked>
+                </div>
+                <button class="setting-btn" onclick="showNotification('🐛 Debug View Enabled')">Debug View</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Empty by default — user adds agents via "+ Agent" modal.
+        let agents = {};
+
+        
+// --- Improved Pet Collision ---
+function isBlocked(x, y) {
+    const kitchenWidth = 160;
+    if (x < kitchenWidth) return true; // block kitchen
+
+    const blocks = document.querySelectorAll('.cafe-table, .conf-table, .cafe-counter, .fridge, .vending-machine');
+    const cafe = document.getElementById('cafeteria').getBoundingClientRect();
+
+    for (let el of blocks) {
+        const r = el.getBoundingClientRect();
+        const bx = r.left - cafe.left;
+        const by = r.top - cafe.top;
+
+        if (x > bx - 20 && x < bx + r.width && y > by - 20 && y < by + r.height) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// ── Pet residents (cat + dog) ──────────────────────────────────────
+        // They wander the cafeteria continuously, occasionally stopping at
+        // their own food plate to eat. Restroom is OFF-LIMITS.
+        // Pets start in the open lower half of the cafeteria (clear of wall furniture)
+        const pets = {
+            cat: { name: 'Whiskers', element: null, x: 150, y: 200, status: 'walking', plateId: 'plate-cat' },
+            dog: { name: 'Rex',      element: null, x: 320, y: 210, status: 'walking', plateId: 'plate-dog' }
+        };
+
+        function createPetElement(petKey) {
+            const pet = pets[petKey];
+            const el = document.createElement('div');
+            el.className = `pet ${petKey}`;
+            el.id = `pet-${petKey}`;
+            el.innerHTML = `
+                <div class="pet-name">${pet.name}</div>
+                <div class="pet-body">
+                    <div class="pet-ear left"></div>
+                    <div class="pet-ear right"></div>
+                    <div class="pet-eye left"></div>
+                    <div class="pet-eye right"></div>
+                    <div class="pet-tail"></div>
+                </div>
+            `;
+            el.style.left = pet.x + 'px';
+            el.style.top  = pet.y + 'px';
+            document.getElementById('cafeteria').appendChild(el);
+            pet.element = el;
+        }
+
+        async function petWalkTo(petKey, targetX, targetY) {
+            const pet = pets[petKey];
+            const duration = 1200 + Math.random() * 800;
+            const startTime = Date.now();
+            const startX = pet.x, startY = pet.y;
+            const dx = targetX - startX;
+
+            // Flip horizontally based on direction (mirror the body)
+            if (pet.element) {
+                pet.element.style.transform = dx < 0 ? 'scaleX(-1)' : 'scaleX(1)';
+            }
+
+            return new Promise(resolve => {
+                const iv = setInterval(() => {
+                    const p = Math.min((Date.now() - startTime) / duration, 1);
+                    pet.x = startX + (targetX - startX) * p;
+                    pet.y = startY + (targetY - startY) * p;
+                    if (pet.element) {
+                        pet.element.style.left = pet.x + 'px';
+                        pet.element.style.top  = pet.y + 'px';
+                        // gentle vertical bob while walking
+                        const bob = Math.sin(p * Math.PI * 6) * 1.5;
+                        pet.element.style.marginTop = bob + 'px';
+                    }
+                    if (p === 1) { clearInterval(iv); resolve(); }
+                }, 30);
+            });
+        }
+
+        function getPlateCenter(plateId) {
+            const plate = document.getElementById(plateId);
+            const cafe  = document.getElementById('cafeteria');
+            if (!plate || !cafe) return { x: 100, y: 100 };
+            const pr = plate.getBoundingClientRect();
+            const cr = cafe.getBoundingClientRect();
+            return {
+                x: pr.left - cr.left + (pr.width / 2) - 13,
+                y: pr.top  - cr.top  + (pr.height / 2) - 11
+            };
+        }
+
+        // ── Pet eat: walk straight to their plate and munch ─────────────────
+        async function petEat(petKey) {
+            const pet = pets[petKey];
+            pet.status = 'eating';
+            const plate = getPlateCenter(pet.plateId);
+            // Walk to the plate in two legs: first align Y (go to lower area),
+            // then approach the plate. This avoids cutting through wall furniture.
+            const cafe = document.getElementById('cafeteria');
+            const midY = Math.max(pet.y, cafe.clientHeight * 0.55);
+            if (Math.abs(pet.y - plate.y) > 60) {
+                await petWalkTo(petKey, pet.x, midY);          // step 1: move into open floor
+            }
+            await petWalkTo(petKey, plate.x, plate.y);          // step 2: approach plate
+            if (pet.element) pet.element.classList.add('eating');
+            await new Promise(r => setTimeout(r, 2800 + Math.random() * 2000));
+            if (pet.element) pet.element.classList.remove('eating');
+            // Walk back into the open floor area after eating
+            const backX = 80 + Math.random() * (cafe.clientWidth - 160);
+            const backY = cafe.clientHeight * 0.5 + Math.random() * cafe.clientHeight * 0.3;
+            await petWalkTo(petKey, backX, backY);
+            pet.status = 'walking';
+        }
+
+        // ── Obstacle helpers (agents still use these) ────────────────────────
+        function getRoomObstacles(roomId) {
+            const room = document.getElementById(roomId);
+            if (!room) return [];
+            const rr = room.getBoundingClientRect();
+            // Only major solid furniture — skip tiny decorative items so
+            // agents can find walkable paths in dense rooms.
+            const sel = '.cafe-table, .fridge, .conf-table, .desk-setup, ' +
+                        '.toilet, .sink, .door, .door-frame, ' +
+                        '.stove, .kitchen-island, .vending-machine, ' +
+                        '.couch, .tv';
+            const out = [];
+            room.querySelectorAll(sel).forEach(el => {
+                const r = el.getBoundingClientRect();
+                if (!r.width || !r.height) return;
+                out.push({
+                    left:   r.left   - rr.left - 2,
+                    top:    r.top    - rr.top  - 2,
+                    right:  r.right  - rr.left + 2,
+                    bottom: r.bottom - rr.top  + 2
+                });
+            });
+            return out;
+        }
+        function getCafeObstacles() { return getRoomObstacles('cafeteria'); }
+
+        function isClearTarget(x, y, w = 26, h = 22, obstacles = null, roomId = 'cafeteria') {
+            if (!obstacles) obstacles = getRoomObstacles(roomId);
+            const box = { left: x, top: y, right: x + w, bottom: y + h };
+            for (const ob of obstacles) {
+                if (box.left < ob.right && box.right > ob.left &&
+                    box.top  < ob.bottom && box.bottom > ob.top) return false;
+            }
+            return true;
+        }
+
+        function isPathClear(x1, y1, x2, y2, obstacles, w = 26, h = 22) {
+            const steps = 10;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                if (!isClearTarget(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, w, h, obstacles)) return false;
+            }
+            return true;
+        }
+
+        // ── Pet roam loop — always moves, no dead-end blocking ───────────────
+        async function petLoop(petKey) {
+            const pet = pets[petKey];
+            // Wait for layout to render before reading clientWidth/Height
+            await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
+
+            while (pet.element) {
+                const cafe = document.getElementById('cafeteria');
+                const W = Math.max(300, cafe.clientWidth);
+                const H = Math.max(200, cafe.clientHeight);
+
+                if (Math.random() < 0.28) {
+                    // ── Eat ──────────────────────────────────────────────────
+                    await petEat(petKey);
+                } else {
+                    // ── Roam in the open lower portion of the cafeteria ──────
+                    // Top 45 % is wall-furniture band; pets stay below it.
+                    const floorTop = H * 0.45;
+                    const tx = 40  + Math.random() * (W - 100);
+                    const ty = floorTop + Math.random() * (H - floorTop - 30);
+
+                    // Walk in two legs if we need to cross a furniture band:
+                    // first settle Y to floor level, then move X.
+                    if (pet.y < floorTop - 10) {
+                        await petWalkTo(petKey, pet.x, floorTop + 10);
+                    }
+                    await petWalkTo(petKey, tx, ty);
+                }
+
+                // Pause between moves (shorter = livelier)
+                await new Promise(r => setTimeout(r, 500 + Math.random() * 1200));
+            }
+        }
+
+        function startPets() {
+            Object.keys(pets).forEach(k => {
+                if (!pets[k].element) {
+                    createPetElement(k);
+                    petLoop(k);
+                }
+            });
+        }
+
+        const CORE_DEFAULTS = {
+            'trend':   { name: 'Trend-Master',   costume: 'c-m1', type: 'trend',   x: 100, y: 50 },
+            'analyse': { name: 'Analyse-Master', costume: 'c-m2', type: 'analyse', x: 350, y: 50 },
+            'trader':  { name: 'Trader-Master',  costume: 'c-m3', type: 'trader',  x: 600, y: 50 }
+        };
+
+        let cycleCount = 0;
+        let tradeCount = 0;
+        let zoomLevel = 1;
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            if (type === 'error') {
+                notification.style.borderColor = '#f44336';
+                notification.style.color = '#f44336';
+            }
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out forwards';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        const TASK_TYPES = {
+            'analyze-trend': 'Analyze Market Trend',
+            'detect-patterns': 'Detect ICT Patterns',
+            'execute-trade': 'Execute Trade'
+        };
+
+        const COSTUMES = {
+            // ── Men ──────────────────────────────────────────────────────
+            'c-m1':  { head:'c-m1',  body:'c-m1',  label:'Blue Suit',     gender:'man',   hair:'h-short-black',  accessory:'a-none' },
+            'c-m2':  { head:'c-m2',  body:'c-m2',  label:'Khaki Man',     gender:'man',   hair:'h-short-brown',  accessory:'a-none' },
+            'c-m3':  { head:'c-m3',  body:'c-m3',  label:'Dark Suit',     gender:'man',   hair:'h-fade',         accessory:'a-none' },
+            'c-m4':  { head:'c-m4',  body:'c-m4',  label:'Cap Guy',       gender:'man',   hair:'h-short-blonde', accessory:'a-cap'  },
+            'c-m5':  { head:'c-m5',  body:'c-m5',  label:'Glasses Man',   gender:'man',   hair:'h-bald',         accessory:'a-glasses-round' },
+            // ── Women ────────────────────────────────────────────────────
+            'c-w1':  { head:'c-w1',  body:'c-w1',  label:'Brown Hair',    gender:'woman', hair:'h-long-brown',   accessory:'a-none' },
+            'c-w2':  { head:'c-w2',  body:'c-w2',  label:'Blonde Queen',  gender:'woman', hair:'h-long-blonde',  accessory:'a-none' },
+            'c-w3':  { head:'c-w3',  body:'c-w3',  label:'Red Dress',     gender:'woman', hair:'h-long-red',     accessory:'a-earrings' },
+            'c-w4':  { head:'c-w4',  body:'c-w4',  label:'Bun & Band',    gender:'woman', hair:'h-bun',          accessory:'a-headband' },
+            'c-w5':  { head:'c-w5',  body:'c-w5',  label:'Afro Woman',    gender:'woman', hair:'h-afro',         accessory:'a-none' },
+            // ── Wigs ─────────────────────────────────────────────────────
+            'c-wig1':{ head:'c-wig1',body:'c-wig1',label:'Red Wig',       gender:'mixed', hair:'h-wig-red',      accessory:'a-none' },
+            'c-wig2':{ head:'c-wig2',body:'c-wig2',label:'Purple Wig',    gender:'mixed', hair:'h-wig-purple',   accessory:'a-none' },
+            'c-wig3':{ head:'c-wig3',body:'c-wig3',label:'Pink Wig',      gender:'mixed', hair:'h-wig-pink',     accessory:'a-none' },
+            'c-wig4':{ head:'c-wig4',body:'c-wig4',label:'Gold Wig',      gender:'mixed', hair:'h-wig-gold',     accessory:'a-glasses-rect' },
+            'c-wig5':{ head:'c-wig5',body:'c-wig5',label:'Afro Wig',      gender:'mixed', hair:'h-wig-afro',     accessory:'a-beret' },
+            // ── Legacy (backward compat) ──────────────────────────────────
+            'costume-1': { head:'costume-1', body:'costume-1', label:'Classic Man',  gender:'man',   hair:'h-short-black',  accessory:'a-none' },
+            'costume-2': { head:'costume-2', body:'costume-2', label:'Worker Man',   gender:'man',   hair:'h-short-brown',  accessory:'a-none' },
+            'costume-3': { head:'costume-3', body:'costume-3', label:'Dark Suit',    gender:'man',   hair:'h-fade',         accessory:'a-none' },
+            'costume-4': { head:'costume-4', body:'costume-4', label:'Green Woman',  gender:'woman', hair:'h-long-brown',   accessory:'a-none' },
+            'costume-5': { head:'costume-5', body:'costume-5', label:'Tan Woman',    gender:'woman', hair:'h-long-blonde',  accessory:'a-none' },
+            'costume-6': { head:'costume-6', body:'costume-6', label:'Red Mixed',    gender:'mixed', hair:'h-bob',          accessory:'a-none' },
+        };
+
+        const ROOM_POSITIONS = {
+            'trend':   { room: 'trend-room',   deskX: 120, deskY: 95, exitX: 120, exitY: 200 },
+            'analyse': { room: 'analyse-room', deskX: 380, deskY: 95, exitX: 380, exitY: 200 },
+            'trader':  { room: 'trader-room',  deskX: 640, deskY: 95, exitX: 640, exitY: 200 }
+        };
+
+        // Walkable floor zones per room (fractions of room height).
+        // Agents are only allowed to roam in this Y band — keeps them off wall furniture.
+        const ROOM_FLOOR_ZONE = {
+            'cafeteria':    { yMin: 0.48, yMax: 0.92 },
+            'main-office':  { yMin: 0.50, yMax: 0.92 },
+            'breakroom':    { yMin: 0.60, yMax: 0.92 },  // couch/TV fill ~50% from top
+            'trend-room':   { yMin: 0.54, yMax: 0.92 },  // desk fills top ~50%
+            'analyse-room': { yMin: 0.54, yMax: 0.92 },
+            'trader-room':  { yMin: 0.54, yMax: 0.92 },
+            'restroom':     { yMin: 0.28, yMax: 0.90 },
+        };
+
+        // Dynamically compute where an agent should stand when sitting at their desk chair.
+        function getDeskSeatPos(roomId) {
+            const room = document.getElementById(roomId);
+            if (!room) return null;
+            const chair = room.querySelector('.chair');
+            const desk  = room.querySelector('.desk-top');
+            const rr    = room.getBoundingClientRect();
+            const el    = chair || desk;
+            if (!el) return null;
+            const er = el.getBoundingClientRect();
+            return {
+                x: er.left - rr.left + er.width  / 2 - 16,
+                y: er.top  - rr.top  + er.height + 4    // stand just below chair/desk bottom
+            };
+        }
+
+        function addAgent() {
+            const role = document.getElementById('agentRole').value;
+            const name = document.getElementById('agentName').value.trim()
+                       || (role !== 'custom' ? CORE_DEFAULTS[role].name : 'New Agent');
+            const costume = document.getElementById('agentCostume').value;
+
+            let id;
+            if (role === 'custom') {
+                id = 'custom-agent-' + Date.now();
+                const customAgents = Object.keys(agents).filter(k => k.startsWith('custom'));
+                if (customAgents.length >= 10) {
+                    showNotification('⚠️ Maximum 10 custom agents allowed', 'error');
+                    return;
+                }
+                agents[id] = {
+                    name, costume, type: 'custom', element: null,
+                    x: 50 + Math.random() * 100, y: 50 + Math.random() * 80,
+                    status: 'idle', inCafeteria: true, assignedTask: null
+                };
+            } else {
+                if (agents[role] && agents[role].element) {
+                    showNotification(`⚠️ ${CORE_DEFAULTS[role].name} already on the floor`, 'error');
+                    return;
+                }
+                id = role;
+                const def = CORE_DEFAULTS[role];
+                agents[id] = {
+                    name, costume, type: role, element: null,
+                    x: def.x, y: def.y,
+                    status: 'idle', inCafeteria: true, assignedTask: null
+                };
+            }
+
+            createAgentElement(id);
+            document.getElementById('agentName').value = '';
+            updateAgentsList();
+            showNotification(`✓ ${name} added to cafeteria`);
+        }
+
+        function createAgentElement(agentId) {
+            const agent = agents[agentId];
+            const element = document.createElement('div');
+            element.className = `agent walking`;
+            element.id = `element-${agentId}`;
+            const c = COSTUMES[agent.costume];
+            const isNew = !agent.costume.startsWith('costume-');
+            element.innerHTML = `
+                <div class="agent-name">${agent.name}</div>
+                <div class="character">
+                    <div class="head ${c.head}">
+                        ${isNew ? `
+                        <div class="hair ${c.hair}"></div>
+                        <div class="eyebrow left"></div>
+                        <div class="eyebrow right"></div>
+                        <div class="eye left"><div class="eye-iris"></div><div class="eye-pupil"></div></div>
+                        <div class="eye right"><div class="eye-iris"></div><div class="eye-pupil"></div></div>
+                        <div class="nose"></div>
+                        <div class="smile"></div>
+                        <div class="accessory ${c.accessory}"></div>
+                        ` : `
+                        <div class="eyes left"></div>
+                        <div class="eyes right"></div>
+                        <div class="mouth"></div>
+                        `}
+                        <div class="status-dot"></div>
+                    </div>
+                    <div class="body ${c.body}">
+                        <div class="arm left"></div>
+                        <div class="arm right"></div>
+                    </div>
+                    <div class="legs">
+                        <div class="leg"></div>
+                        <div class="leg"></div>
+                    </div>
+                </div>
+            `;
+            element.style.left = agent.x + 'px';
+            element.style.top = agent.y + 'px';
+            element.onclick = (e) => {
+                e.stopPropagation();
+                selectAgent(agentId);
+                showAgentStatus(agentId, e);
+            };
+            document.getElementById('main-office').appendChild(element);
+            agents[agentId].element = element;
+            agents[agentId].location = 'main-office';
+            agents[agentId].seat = null;
+            setDot(agentId, 's-idle');
+            startIdleLoop(agentId);
+        }
+
+        // Click-on-agent popup — shows live status, location, assigned task.
+        // Auto-dismisses after 4s; clicking elsewhere closes it immediately.
+        let _activePopup = null;
+        function showAgentStatus(agentId, evt) {
+            if (_activePopup) { _activePopup.remove(); _activePopup = null; }
+            const agent = agents[agentId];
+            if (!agent) return;
+
+            const taskName = agent.assignedTask
+                ? (TASK_TYPES[agent.assignedTask] || agent.assignedTask)
+                : 'unassigned';
+            const locName = (agent.location || 'unknown').replace('-room', '').replace('-', ' ');
+            const cycleLine = agent.runningCycle
+                ? '<div class="popup-row">🔄 <b>In active cycle</b></div>'
+                : '';
+            const seatLine = agent.seat
+                ? `<div class="popup-row">🪑 Seated at: <b>${agent.seat}</b></div>`
+                : '';
+
+            const popup = document.createElement('div');
+            popup.className = 'agent-popup';
+            popup.innerHTML = `
+                <div class="popup-header">${agent.name}</div>
+                <div class="popup-row">📍 Location: <b>${locName}</b></div>
+                <div class="popup-row">⚡ Status:    <b>${agent.status}</b></div>
+                <div class="popup-row">📋 Task:      <b>${taskName}</b></div>
+                <div class="popup-row">🎨 Costume:   ${agent.costume}</div>
+                ${seatLine}
+                ${cycleLine}
+            `;
+
+            const x = Math.min(window.innerWidth - 220, evt.clientX + 14);
+            const y = Math.max(10,                      evt.clientY - 90);
+            popup.style.left = x + 'px';
+            popup.style.top  = y + 'px';
+
+            document.body.appendChild(popup);
+            _activePopup = popup;
+            setTimeout(() => {
+                if (_activePopup === popup) { popup.remove(); _activePopup = null; }
+            }, 4500);
+        }
+        document.addEventListener('click', (e) => {
+            if (_activePopup && !e.target.closest('.agent')) {
+                _activePopup.remove();
+                _activePopup = null;
+            }
+        });
+
+        function selectAgent(agentId) {
+            // Deselect previous agent
+            if (selectedAgent && agents[selectedAgent]?.element) {
+                agents[selectedAgent].element.classList.remove('selected');
+            }
+
+            // Select new agent
+            selectedAgent = agentId;
+            if (agents[agentId]?.element) {
+                agents[agentId].element.classList.add('selected');
+            }
+        }
+
+        // ── Realistic idle behavior ─────────────────────────────────────────
+        // Agents idle in the Main Office; sometimes get coffee in cafeteria,
+        // sometimes use the restroom, sometimes sit at a conference table.
+        // Single-occupancy lock for the restroom; chairs are first-come.
+        const RESTROOM_LOCK = { busy: false };
+        const SEATS_TAKEN = new Set();        // data-seat values currently occupied
+
+        function isAgentBusy(agent) {
+            return !agent || !agent.element ||
+                   agent.assignedTask !== null ||
+                   agent.status !== 'idle' ||
+                   agent.runningCycle === true;
+        }
+
+        function findFreeSeat(roomId) {
+            const seats = document.querySelectorAll(`#${roomId} .conf-chair`);
+            const free = [];
+            seats.forEach(s => {
+                const id = s.getAttribute('data-seat');
+                if (id && !SEATS_TAKEN.has(id)) free.push(s);
+            });
+            return free.length ? free[Math.floor(Math.random() * free.length)] : null;
+        }
+
+        function localPosOf(parentId, child, offsetX = 0, offsetY = 0) {
+            const parent = document.getElementById(parentId);
+            const pr = parent.getBoundingClientRect();
+            const cr = child.getBoundingClientRect();
+            // Position agent so the body (not legs) sits at chair level:
+            // agent.top + 33 (body-centre) = chair.top + chair.height/2
+            return {
+                x: cr.left - pr.left + (cr.width  / 2) - 16 + offsetX,
+                y: cr.top  - pr.top  + (cr.height / 2) - 33 + offsetY
+            };
+        }
+
+        // Move the agent's DOM element to a new room; keep visual continuity.
+        function moveAgentToRoom(agentId, roomId, entry) {
+            const agent = agents[agentId];
+            agent.element.remove();
+            document.getElementById(roomId).appendChild(agent.element);
+            agent.location = roomId;
+            agent.x = entry.x;
+            agent.y = entry.y;
+            agent.element.style.left = agent.x + 'px';
+            agent.element.style.top  = agent.y + 'px';
+        }
+
+        // Walk inside the agent's current room to a random floor-zone spot.
+        // Y is clamped to ROOM_FLOOR_ZONE so agents never wander onto furniture.
+        async function wanderInRoom(agentId, roomId) {
+            const agent = agents[agentId];
+            if (isAgentBusy(agent)) return;
+            const room = document.getElementById(roomId);
+            const w = room.clientWidth, h = room.clientHeight;
+            const obstacles = getRoomObstacles(roomId);
+            const zone  = ROOM_FLOOR_ZONE[roomId] || { yMin: 0.50, yMax: 0.92 };
+            const yLo   = h * zone.yMin;
+            const yHi   = h * zone.yMax;
+
+            let tx, ty, ok = false;
+            for (let i = 0; i < 24; i++) {
+                tx = 14 + Math.random() * Math.max(30, w - 50);
+                ty = yLo + Math.random() * (yHi - yLo);
+                if (isClearTarget(tx, ty, 32, 50, obstacles, roomId) &&
+                    isPathClear(agent.x, agent.y, tx, ty, obstacles, 32, 50)) {
+                    ok = true; break;
+                }
+            }
+            if (!ok) return;
+
+            agent.element.classList.add('walking');
+            // Two-leg walk: first reach the floor-zone Y, then move laterally —
+            // prevents the agent cutting diagonally through wall furniture.
+            const midY = Math.max(agent.y, yLo);
+            if (Math.abs(agent.y - midY) > 8 &&
+                isClearTarget(agent.x, midY, 32, 50, obstacles, roomId)) {
+                await walkToPoint(agentId, agent.x, midY);
+            }
+            await walkToPoint(agentId, tx, ty);
+            agent.element.classList.remove('walking');
+        }
+
+        // Sit at a free conference chair for a while.
+        async function sitAtConference(agentId, roomId) {
+            const agent = agents[agentId];
+            if (isAgentBusy(agent)) return;
+            const seat = findFreeSeat(roomId);
+            if (!seat) { await wanderInRoom(agentId, roomId); return; }
+
+            const seatId = seat.getAttribute('data-seat');
+            SEATS_TAKEN.add(seatId);
+            agent.seat = seatId;
+            try {
+                const pos = localPosOf(roomId, seat);
+                await walkToFurniture(agentId, pos.x, pos.y);
+                agent.element.classList.add('sitting');
+                setDot(agentId, 's-break');
+                const thoughts = ['💭 Thinking…','📊 Reviewing data','🧠 Strategizing','📋 Planning'];
+                showBubble(agentId, thoughts[Math.floor(Math.random() * thoughts.length)], 4000);
+                await new Promise(r => setTimeout(r, 4000 + Math.random() * 6000));
+                agent.element.classList.remove('sitting');
+            } finally {
+                SEATS_TAKEN.delete(seatId);
+                agent.seat = null;
+            }
+        }
+
+        // Approach wall-mounted furniture without crossing it.
+        // Moves X (lateral) first while staying at current Y, then approaches
+        // vertically — the agent never clips through a counter or shelf.
+        async function walkToFurniture(agentId, tx, ty) {
+            const agent = agents[agentId];
+            if (!agent?.element) return;
+            agent.element.classList.add('walking');
+            if (Math.abs(agent.x - tx) > 6) {
+                await walkToPoint(agentId, tx, agent.y);  // lateral step
+            }
+            await walkToPoint(agentId, tx, ty);           // approach depth
+            agent.element.classList.remove('walking');
+        }
+
+        // Coffee break: main-office → hallway → cafeteria → wander → back.
+        async function coffeeBreak(agentId) {
+            const agent = agents[agentId];
+            setDot(agentId, 's-moving');
+            await transitTo(agentId, 'cafeteria');
+            setDot(agentId, 's-break');
+            showBubble(agentId, '☕ Coffee break!');
+            const rounds = 2 + Math.floor(Math.random() * 3);
+            for (let i = 0; i < rounds; i++) {
+                if (isAgentBusy(agent)) break;
+                await wanderInRoom(agentId, 'cafeteria');
+                await new Promise(r => setTimeout(r, 800 + Math.random() * 1500));
+            }
+            if (!isAgentBusy(agent)) await transitTo(agentId, 'main-office');
+        }
+
+        // Restroom break: hallway-routed, single-occupancy.
+        // Sequence: walk to toilet → open lid → sit → stand → close lid →
+        // walk to sink → wash hands (water animation + arm typing) → return.
+        async function restroomBreak(agentId) {
+            const agent = agents[agentId];
+            if (RESTROOM_LOCK.busy) return;
+            RESTROOM_LOCK.busy = true;
+            try {
+                setDot(agentId, 's-moving');
+                showBubble(agentId, '🚻 Be right back…', 3000);
+                await transitTo(agentId, 'restroom');
+                setDot(agentId, 's-resting');
+
+                const restroom = document.getElementById('restroom');
+                const toilet   = document.getElementById('toilet');
+                const sink     = document.getElementById('sink');
+                if (!toilet || !sink) return;
+
+                // ── 1. Walk in front of the toilet (stand below it) ──
+                const tRect  = toilet.getBoundingClientRect();
+                const rRect  = restroom.getBoundingClientRect();
+                const standX = tRect.left - rRect.left + tRect.width  / 2 - 16;
+                const standY = tRect.top  - rRect.top  + tRect.height + 4;  // floor in front
+                // Sitting position: body overlaps bowl top, legs hidden
+                const sitY   = tRect.top  - rRect.top  + tRect.height / 2 - 20;
+
+                await walkToFurniture(agentId, standX, standY);
+
+                // ── 2. Open lid, then sit ──
+                toilet.classList.add('open');
+                await new Promise(r => setTimeout(r, 500));
+                agent.element.classList.add('walking');
+                await walkToPoint(agentId, standX, sitY);
+                agent.element.classList.remove('walking');
+                agent.element.classList.add('sitting');
+                await new Promise(r => setTimeout(r, 3200 + Math.random() * 2200));
+
+                // ── 3. Stand back up, close lid ──
+                agent.element.classList.remove('sitting');
+                agent.element.classList.add('walking');
+                await walkToPoint(agentId, standX, standY);
+                agent.element.classList.remove('walking');
+                toilet.classList.remove('open');
+                await new Promise(r => setTimeout(r, 500));
+
+                // ── 4. Walk to the sink ──
+                const sRect = sink.getBoundingClientRect();
+                const sinkX = sRect.left - rRect.left + sRect.width  / 2 - 16;
+                const sinkY = sRect.top  - rRect.top  + sRect.height + 6;
+                await walkToFurniture(agentId, sinkX, sinkY);
+
+                // ── 5. Wash hands: water flows + arms move ──
+                sink.classList.add('washing');
+                agent.element.classList.add('working');   // reuses arm typing anim
+                await new Promise(r => setTimeout(r, 2500 + Math.random() * 1500));
+                agent.element.classList.remove('working');
+                sink.classList.remove('washing');
+
+                // ── 6. Back to main office via hallway ──
+                if (!isAgentBusy(agent)) await transitTo(agentId, 'main-office');
+            } finally {
+                RESTROOM_LOCK.busy = false;
+            }
+        }
+
+        // ── Helpers ──────────────────────────────────────────────────────────
+        function showBubble(agentId, text, ms = 4000) {
+            const agent = agents[agentId];
+            if (!agent?.element) return;
+            const old = agent.element.querySelector('.speech-bubble');
+            if (old) old.remove();
+            const b = document.createElement('div');
+            b.className = 'speech-bubble';
+            b.textContent = text;
+            agent.element.appendChild(b);
+            setTimeout(() => { if (b.parentNode) b.remove(); }, ms);
+        }
+
+        function setDot(agentId, cls) {
+            const agent = agents[agentId];
+            if (!agent?.element) return;
+            const dot = agent.element.querySelector('.status-dot');
+            if (!dot) return;
+            dot.className = `status-dot ${cls}`;
+        }
+
+        // ── Breakroom — watch TV / nap on couch ──────────────────────────────
+        async function watchTv(agentId) {
+            const agent = agents[agentId];
+            if (isAgentBusy(agent)) return;
+            await transitTo(agentId, 'breakroom');
+            if (isAgentBusy(agent)) return;
+
+            const room  = document.getElementById('breakroom');
+            const tv    = room.querySelector('.tv');
+            const couch = room.querySelector('.couch');
+            if (!couch) return;
+
+            const rr = room.getBoundingClientRect();
+            const cr = couch.getBoundingClientRect();
+            const cx = cr.left - rr.left + cr.width  / 2 - 16;
+            // Sit ON the couch surface: top of couch + a few px so body overlaps it
+            const cy = cr.top  - rr.top  + 6;
+
+            await walkToFurniture(agentId, cx, cy);
+            agent.element.classList.add('couch-sit');
+            setDot(agentId, 's-resting');
+            if (tv) tv.classList.add('active');
+            showBubble(agentId, '📺 Watching TV');
+
+            await new Promise(r => setTimeout(r, 7000 + Math.random() * 7000));
+
+            agent.element.classList.remove('couch-sit');
+            if (tv) tv.classList.remove('active');
+            if (!isAgentBusy(agent)) await transitTo(agentId, 'main-office');
+        }
+
+        async function napOnCouch(agentId) {
+            const agent = agents[agentId];
+            if (isAgentBusy(agent)) return;
+            await transitTo(agentId, 'breakroom');
+            if (isAgentBusy(agent)) return;
+
+            const room  = document.getElementById('breakroom');
+            const couch = room.querySelector('.couch');
+            if (!couch) return;
+
+            const rr = room.getBoundingClientRect();
+            const cr = couch.getBoundingClientRect();
+            const cx = cr.left - rr.left + cr.width  / 2 - 16;
+            const cy = cr.top  - rr.top  + 6;
+
+            await walkToFurniture(agentId, cx, cy);
+            agent.element.classList.add('couch-sit');
+            setDot(agentId, 's-resting');
+
+            const zzz = document.createElement('div');
+            zzz.className = 'zzz-float';
+            zzz.textContent = 'z z z';
+            agent.element.appendChild(zzz);
+            showBubble(agentId, '😴 Taking a nap');
+
+            await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
+
+            zzz.remove();
+            agent.element.classList.remove('couch-sit');
+            if (!isAgentBusy(agent)) await transitTo(agentId, 'main-office');
+        }
+
+        // ── Cafeteria activities ──────────────────────────────────────────────
+        async function getWater(agentId) {
+            const agent = agents[agentId];
+            if (isAgentBusy(agent)) return;
+            await transitTo(agentId, 'cafeteria');
+            if (isAgentBusy(agent)) return;
+
+            const room = document.getElementById('cafeteria');
+            const wc   = room.querySelector('.water-cooler');
+            if (!wc) { await wanderInRoom(agentId, 'cafeteria'); return; }
+
+            const rr = room.getBoundingClientRect();
+            const wr = wc.getBoundingClientRect();
+            const wx = wr.left - rr.left + wr.width  / 2 - 16;
+            const wy = wr.top  - rr.top  + wr.height + 6; // stand in front of machine
+
+            await walkToFurniture(agentId, wx, wy);
+            setDot(agentId, 's-break');
+            showBubble(agentId, '💧 Getting water');
+            await new Promise(r => setTimeout(r, 2000 + Math.random() * 1500));
+
+            if (!isAgentBusy(agent)) await transitTo(agentId, 'main-office');
+        }
+
+        async function getVendingSnack(agentId) {
+            const agent = agents[agentId];
+            if (isAgentBusy(agent)) return;
+            await transitTo(agentId, 'cafeteria');
+            if (isAgentBusy(agent)) return;
+
+            const room = document.getElementById('cafeteria');
+            const vm   = room.querySelector('.vending-machine');
+            if (!vm) { await wanderInRoom(agentId, 'cafeteria'); return; }
+
+            const rr = room.getBoundingClientRect();
+            const vr = vm.getBoundingClientRect();
+            const vx = vr.left - rr.left + vr.width  / 2 - 16;
+            const vy = vr.top  - rr.top  + vr.height + 6;
+
+            await walkToFurniture(agentId, vx, vy);
+            setDot(agentId, 's-break');
+            const snacks = ['🍫 Grabbing snack','🥤 Getting soda','🍬 Candy time!','🍪 Cookie run'];
+            showBubble(agentId, snacks[Math.floor(Math.random() * snacks.length)]);
+            await new Promise(r => setTimeout(r, 2500 + Math.random() * 1500));
+
+            if (!isAgentBusy(agent)) await transitTo(agentId, 'main-office');
+        }
+
+        async function getCoffeeMachine(agentId) {
+            const agent = agents[agentId];
+            if (isAgentBusy(agent)) return;
+            await transitTo(agentId, 'cafeteria');
+            if (isAgentBusy(agent)) return;
+
+            const room = document.getElementById('cafeteria');
+            const cm   = room.querySelector('.coffee-machine');
+            if (!cm) { await wanderInRoom(agentId, 'cafeteria'); return; }
+
+            const rr = room.getBoundingClientRect();
+            const cr = cm.getBoundingClientRect();
+            const cx = cr.left - rr.left + cr.width  / 2 - 16;
+            const cy = cr.top  - rr.top  + cr.height + 6;
+
+            await walkToFurniture(agentId, cx, cy);
+            setDot(agentId, 's-break');
+
+            // Add steam dots above the machine while brewing
+            const s1 = Object.assign(document.createElement('div'), { className: 'steam-dot' });
+            const s2 = Object.assign(document.createElement('div'), { className: 'steam-dot s2' });
+            const s3 = Object.assign(document.createElement('div'), { className: 'steam-dot s3' });
+            [s1, s2, s3].forEach(s => {
+                s.style.cssText = `top:${cr.top - rr.top - 8}px; left:${cx + 14}px;`;
+                room.appendChild(s);
+            });
+            showBubble(agentId, '☕ Getting coffee');
+            await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
+            [s1, s2, s3].forEach(s => s.remove());
+
+            if (!isAgentBusy(agent)) await transitTo(agentId, 'main-office');
+        }
+
+        async function stretchAtDesk(agentId) {
+            const agent = agents[agentId];
+            if (isAgentBusy(agent)) return;
+            setDot(agentId, 's-break');
+            showBubble(agentId, '🧘 Stretching...');
+            agent.element.classList.add('working');   // arm wave
+            await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
+            agent.element.classList.remove('working');
+            setDot(agentId, 's-idle');
+        }
+
+        async function sitAtCafeTable(agentId) {
+            const agent = agents[agentId];
+            if (isAgentBusy(agent)) return;
+            await transitTo(agentId, 'cafeteria');
+            if (isAgentBusy(agent)) return;
+            const seat = findFreeSeat('cafeteria');
+            if (!seat) { await wanderInRoom(agentId, 'cafeteria'); return; }
+
+            const seatId = seat.getAttribute('data-seat');
+            SEATS_TAKEN.add(seatId);
+            agent.seat = seatId;
+            try {
+                const pos = localPosOf('cafeteria', seat);
+                await walkToFurniture(agentId, pos.x, pos.y);
+                agent.element.classList.add('sitting');
+                setDot(agentId, 's-break');
+                const lines = ['💬 Chatting','🥗 Having lunch','📱 On phone','☕ Coffee break'];
+                showBubble(agentId, lines[Math.floor(Math.random() * lines.length)], 5000);
+                await new Promise(r => setTimeout(r, 5000 + Math.random() * 6000));
+                agent.element.classList.remove('sitting');
+            } finally {
+                SEATS_TAKEN.delete(seatId);
+                agent.seat = null;
+                if (!isAgentBusy(agent)) await transitTo(agentId, 'main-office');
+            }
+        }
+
+        async function pickIdleActivity(agentId) {
+            const agent = agents[agentId];
+            if (isAgentBusy(agent)) return;
+            setDot(agentId, 's-idle');
+            const r = Math.random();
+            if      (r < 0.22) await wanderInRoom(agentId, agent.location || 'main-office');
+            else if (r < 0.38) await sitAtConference(agentId, 'main-office');
+            else if (r < 0.50) await coffeeBreak(agentId);
+            else if (r < 0.60) await watchTv(agentId);
+            else if (r < 0.68) await napOnCouch(agentId);
+            else if (r < 0.75) await restroomBreak(agentId);
+            else if (r < 0.82) await getWater(agentId);
+            else if (r < 0.88) await getVendingSnack(agentId);
+            else if (r < 0.94) await sitAtCafeTable(agentId);
+            else               await stretchAtDesk(agentId);
+        }
+
+        async function startIdleLoop(agentId) {
+            const agent = agents[agentId];
+            // staggered start so all agents don't move in sync
+            await new Promise(r => setTimeout(r, 800 + Math.random() * 5000));
+            while (agent.element && !isAgentBusy(agent)) {
+                await pickIdleActivity(agentId);
+                if (isAgentBusy(agent)) break;
+                await new Promise(r => setTimeout(r, 2500 + Math.random() * 7000));
+            }
+        }
+
+        // Backwards-compat shim — older call sites still use startRandomWalk.
+        function startRandomWalk(agentId) { startIdleLoop(agentId); }
+
+        function createAllAgents() {
+            Object.entries(agents).forEach(([agentId, agent]) => {
+                if (!agent.element) {
+                    createAgentElement(agentId);
+                }
+            });
+        }
+
+        function removeAgent(id) {
+            if (id.startsWith('custom')) {
+                if (agents[id] && agents[id].element) {
+                    agents[id].element.remove();
+                    delete agents[id];
+                    updateAgentsList();
+                    showNotification(`✓ Agent removed`);
+                }
+            } else {
+                showNotification('⚠️ Cannot remove core agents', 'error');
+            }
+        }
+
+        function updateAgentsList() {
+            const list = document.getElementById('activeAgentsList');
+            list.innerHTML = '';
+            Object.entries(agents).forEach(([type, agent]) => {
+                if (agent.element) {
+                    const item = document.createElement('div');
+                    item.className = 'agent-item';
+                    item.innerHTML = `
+                        <span>${agent.name} (${agent.status})</span>
+                        <button class="agent-item-btn" onclick="removeAgent('${type}')" ${type.startsWith('custom') ? '' : 'disabled'} style="${type.startsWith('custom') ? '' : 'opacity: 0.5; cursor: not-allowed;'}">${type.startsWith('custom') ? 'Remove' : 'Core'}</button>
+                    `;
+                    list.appendChild(item);
+                }
+            });
+        }
+
+        function loadSeatsUI() {
+            const content = document.getElementById('seatsContent');
+            content.innerHTML = '<label class="form-label">Agents are automatically assigned to their rooms</label>';
+            const requiredAgents = { 'trend': 'Trend Room', 'analyse': 'Analyse Room', 'trader': 'Trader Room' };
+            Object.entries(requiredAgents).forEach(([type, room]) => {
+                const group = document.createElement('div');
+                group.style.marginBottom = '10px';
+                group.innerHTML = `<div style="color: #FFD700; font-size: 11px;">${agents[type].name} → ${room}</div>`;
+                content.appendChild(group);
+            });
+        }
+
+        function loadCostumeAgents() {
+            const select = document.getElementById('costumeAgent');
+            select.innerHTML = '';
+            Object.entries(agents).forEach(([type, agent]) => {
+                if (agent.element) {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = agent.name;
+                    select.appendChild(option);
+                }
+            });
+            loadCostumes();
+        }
+
+        function loadCostumes() {
+            const grid = document.getElementById('costumeGrid');
+            grid.innerHTML = '';
+            // Only show new-style costumes in the picker (skip legacy costume-1..6)
+            const entries = Object.entries(COSTUMES).filter(([id]) => !id.startsWith('costume-'));
+            entries.forEach(([costumeId, c]) => {
+                const isNew = !costumeId.startsWith('costume-');
+                const faceInner = isNew ? `
+                    <div class="hair ${c.hair}"></div>
+                    <div class="eyebrow left"></div>
+                    <div class="eyebrow right"></div>
+                    <div class="eye left"><div class="eye-iris"></div><div class="eye-pupil"></div></div>
+                    <div class="eye right"><div class="eye-iris"></div><div class="eye-pupil"></div></div>
+                    <div class="nose"></div>
+                    <div class="smile"></div>
+                    <div class="accessory ${c.accessory}"></div>
+                ` : `
+                    <div class="eyes left"></div>
+                    <div class="eyes right"></div>
+                    <div class="mouth"></div>
+                `;
+                const option = document.createElement('div');
+                option.className = 'costume-option';
+                option.innerHTML = `
+                    <div class="costume-preview" style="background:#1a1a2e;padding:8px;">
+                        <div class="character" style="width:38px;height:60px;">
+                            <div class="head ${c.head}" style="width:26px;height:26px;">
+                                ${faceInner}
+                            </div>
+                            <div class="body ${c.body}" style="width:22px;height:16px;"></div>
+                            <div class="legs"><div class="leg"></div><div class="leg"></div></div>
+                        </div>
+                    </div>
+                    <div class="costume-name">${c.label}</div>
+                    <div style="color:#b0e0e6;font-size:10px;margin-top:3px;">${c.gender}</div>
+                `;
+                option.onclick = () => changeCostume(costumeId);
+                grid.appendChild(option);
+            });
+        }
+
+        function changeCostume(costumeId) {
+            const agentType = document.getElementById('costumeAgent').value;
+            const agent = agents[agentType];
+            if (!agent || !agent.element) return;
+            agent.costume = costumeId;
+            const el   = agent.element;
+            const c    = COSTUMES[costumeId];
+            const isNew = !costumeId.startsWith('costume-');
+            el.querySelector('.head').className = `head ${c.head}`;
+            el.querySelector('.body').className = `body ${c.body}`;
+            if (isNew) {
+                // Rebuild face internals for new-style costumes
+                const head = el.querySelector('.head');
+                const dot  = head.querySelector('.status-dot');
+                // Clear old face divs, keep status-dot
+                head.innerHTML = '';
+                head.appendChild(dot);
+                const frag = document.createRange().createContextualFragment(`
+                    <div class="hair ${c.hair}"></div>
+                    <div class="eyebrow left"></div>
+                    <div class="eyebrow right"></div>
+                    <div class="eye left"><div class="eye-iris"></div><div class="eye-pupil"></div></div>
+                    <div class="eye right"><div class="eye-iris"></div><div class="eye-pupil"></div></div>
+                    <div class="nose"></div>
+                    <div class="smile"></div>
+                    <div class="accessory ${c.accessory}"></div>
+                `);
+                head.prepend(frag);
+            } else {
+                // Legacy: just update hair/mouth classes if divs exist
+                const hairEl = el.querySelector('.hair');
+                const accEl  = el.querySelector('.accessory');
+                if (hairEl) hairEl.className = `hair ${c.hair}`;
+                if (accEl)  accEl.className  = `accessory ${c.accessory}`;
+            }
+        }
+
+        async function openDoor(type) {
+            const door = document.getElementById('door-' + type);
+            if (door) door.classList.add('open');
+        }
+
+        async function closeDoor(type) {
+            const door = document.getElementById('door-' + type);
+            if (door) door.classList.remove('open');
+        }
+
+        // ── Hallway routing ───────────────────────────────────────────────
+        // Every room has a door opening onto the hallway. To go anywhere,
+        // exit through your room's door → walk in the hallway → enter the
+        // target room's door. Restroom is reachable without main-office.
+        const ROOM_DOOR_EDGE = {
+            'cafeteria':     'bottom',
+            'main-office':   'bottom',
+            'breakroom':     'bottom',
+            'trend-room':    'top',
+            'analyse-room':  'top',
+            'trader-room':   'top',
+            'restroom':      'top'
+        };
+        const ROOM_DOOR_KEY = {
+            'cafeteria':    'cafe',
+            'main-office':  'main',
+            'breakroom':    'break',
+            'trend-room':   'trend',
+            'analyse-room': 'analyse',
+            'trader-room':  'trader',
+            'restroom':     'restroom'
+        };
+
+        function hallXForRoom(roomId) {
+            const hall = document.getElementById('hallway');
+            const room = document.getElementById(roomId);
+            if (!hall || !room) return 0;
+            const hr = hall.getBoundingClientRect();
+            const rr = room.getBoundingClientRect();
+            return (rr.left - hr.left) + (rr.width / 2) - 16;
+        }
+
+        async function exitToHallway(agentId, fromRoomId) {
+            const agent = agents[agentId];
+            const room = document.getElementById(fromRoomId);
+            const edge = ROOM_DOOR_EDGE[fromRoomId];
+            const doorKey = ROOM_DOOR_KEY[fromRoomId];
+
+            agent.element.classList.add('walking');
+            agent.element.classList.remove('sitting', 'working');
+
+            // Step 1 — walk to the door (centered horizontally, near the door edge)
+            const wx = (room.clientWidth / 2) - 16;
+            const wy = (edge === 'bottom') ? room.clientHeight - 28 : -4;
+            await walkToPoint(agentId, wx, wy);
+
+            // Step 2 — open the door, pause for the hinge animation
+            await openDoor(doorKey);
+            await new Promise(r => setTimeout(r, 320));
+
+            // Step 3 — emerge in hallway directly opposite the door
+            const hall = document.getElementById('hallway');
+            agent.element.remove();
+            hall.appendChild(agent.element);
+            agent.location = 'hallway';
+            agent.x = hallXForRoom(fromRoomId);
+            // bottom-edge doors → hallway top; top-edge doors → hallway bottom
+            agent.y = (edge === 'bottom') ? -2 : hall.clientHeight - 30;
+            agent.element.style.left = agent.x + 'px';
+            agent.element.style.top  = agent.y + 'px';
+
+            // Step 4 — walk a short step into the hallway center, then close door
+            await walkToPoint(agentId, agent.x, (hall.clientHeight / 2) - 22);
+            await closeDoor(doorKey);
+        }
+
+        async function enterFromHallway(agentId, toRoomId) {
+            const agent = agents[agentId];
+            const room = document.getElementById(toRoomId);
+            const edge = ROOM_DOOR_EDGE[toRoomId];
+            const doorKey = ROOM_DOOR_KEY[toRoomId];
+            const hall = document.getElementById('hallway');
+            const targetX = hallXForRoom(toRoomId);
+
+            // Step 1 — walk along the hallway to a spot in front of the target's door
+            await walkToPoint(agentId, targetX, (hall.clientHeight / 2) - 22);
+
+            // Step 2 — approach the door from the hallway side
+            const approachY = (edge === 'bottom') ? -2 : hall.clientHeight - 30;
+            await walkToPoint(agentId, targetX, approachY);
+
+            // Step 3 — open the door
+            await openDoor(doorKey);
+            await new Promise(r => setTimeout(r, 320));
+
+            // Step 4 — step through into the target room
+            agent.element.remove();
+            room.appendChild(agent.element);
+            agent.location = toRoomId;
+            agent.x = (room.clientWidth / 2) - 16;
+            agent.y = (edge === 'bottom') ? room.clientHeight - 30 : -2;
+            agent.element.style.left = agent.x + 'px';
+            agent.element.style.top  = agent.y + 'px';
+
+            // Step 5 — route into the room's FLOOR ZONE without crossing furniture.
+            const zone   = ROOM_FLOOR_ZONE[toRoomId] || { yMin: 0.50, yMax: 0.92 };
+            const yFloor = room.clientHeight * zone.yMin
+                         + Math.random() * room.clientHeight * (zone.yMax - zone.yMin) * 0.45;
+            const settleX = room.clientWidth * 0.15 + Math.random() * room.clientWidth * 0.70;
+
+            if (edge === 'bottom') {
+                // Door at bottom → agent enters near bottom and walks UP into the room.
+                // Furniture is near the top, so we stop at the floor-zone boundary.
+                await walkToPoint(agentId, settleX, yFloor);
+            } else {
+                // Door at top → desk/furniture is right below the door.
+                // Skirt along the wall edge first (X-axis only), then slide down
+                // beside the furniture, then step into open floor space.
+                const edgeX  = (agent.x < room.clientWidth / 2)
+                              ? Math.max(4,  room.clientWidth * 0.08)
+                              : Math.min(room.clientWidth - 36, room.clientWidth * 0.82);
+                // 1. Slide to the near wall edge (horizontal move only)
+                await walkToPoint(agentId, edgeX, agent.y);
+                // 2. Walk straight down beside the furniture to floor zone
+                await walkToPoint(agentId, edgeX, yFloor);
+                // 3. Step across to the desired floor X
+                await walkToPoint(agentId, settleX, yFloor);
+            }
+            await closeDoor(doorKey);
+            agent.element.classList.remove('walking');
+        }
+
+        async function transitTo(agentId, targetRoomId) {
+            const agent = agents[agentId];
+            if (!agent || !agent.element) return;
+            if (agent.location === targetRoomId) return;
+
+            setDot(agentId, 's-moving');
+            if (agent.location && agent.location !== 'hallway') {
+                await exitToHallway(agentId, agent.location);
+            }
+            await enterFromHallway(agentId, targetRoomId);
+        }
+
+        // Walk an agent INTO their assigned office via the hallway, sit at desk.
+        async function enterOffice(type) {
+            const agent = agents[type];
+            const pos = ROOM_POSITIONS[type];
+
+            agent.runningCycle = true;
+            agent.element.classList.add('walking');
+            agent.element.classList.remove('working', 'sitting', 'desk-sit', 'couch-sit');
+            agent.status = 'moving';
+            updateAgentsList();
+
+            // current → hallway → office room (handled by transitTo)
+            await transitTo(type, pos.room);
+
+            // Walk to the desk chair using live DOM position, then sit.
+            const deskPos = getDeskSeatPos(pos.room);
+            const finalX  = deskPos ? deskPos.x : pos.deskX;
+            const finalY  = deskPos ? deskPos.y : pos.deskY;
+
+            // Approach in two legs: reach the desk Y first (sidestep furniture),
+            // then align X to the chair centre.
+            await walkToPoint(type, agent.x, finalY);
+            await walkToPoint(type, finalX,  finalY);
+
+            agent.element.classList.remove('walking');
+            // desk-sit hides legs (tucked under desk) + working animates arms
+            agent.element.classList.add('desk-sit', 'working');
+            agent.status = 'working';
+            setDot(type, 's-working');
+            // Activate monitor glow in the agent's room
+            const wRoom = document.getElementById(pos.room);
+            if (wRoom) {
+                const mon = wRoom.querySelector('.monitor');
+                if (mon) mon.classList.add('active');
+                wRoom.classList.add('room-lit');
+            }
+            showBubble(type, type === 'trend' ? '📈 Analyzing trend…' : type === 'analyse' ? '🔍 Detecting patterns…' : '💰 Executing trade…', 8000);
+            updateAgentsList();
+            await new Promise(r => setTimeout(r, 400));
+        }
+
+        // Walk an agent OUT of their office back to the Main Office via hallway.
+        async function exitOffice(type) {
+            const agent = agents[type];
+
+            agent.element.classList.remove('sitting', 'desk-sit', 'working');
+            agent.element.classList.add('walking');
+            agent.status = 'moving';
+            setDot(type, 's-moving');
+            // Deactivate monitor glow
+            const exRoom = document.getElementById(ROOM_POSITIONS[type]?.room);
+            if (exRoom) {
+                const mon = exRoom.querySelector('.monitor');
+                if (mon) mon.classList.remove('active');
+                exRoom.classList.remove('room-lit');
+            }
+            updateAgentsList();
+
+            await transitTo(type, 'main-office');
+
+            agent.status = 'idle';
+            agent.runningCycle = false;
+            setDot(type, 's-idle');
+            updateAgentsList();
+            startIdleLoop(type);
+        }
+
+        async function walkToPoint(type, targetX, targetY) {
+            const agent = agents[type];
+            const duration = 1500;
+            const startTime = Date.now();
+            const startX = agent.x;
+            const startY = agent.y;
+
+            return new Promise(resolve => {
+                const interval = setInterval(() => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+
+                    agent.x = startX + (targetX - startX) * progress;
+                    agent.y = startY + (targetY - startY) * progress;
+
+                    if (agent.element) {
+                        agent.element.style.left = agent.x + 'px';
+                        agent.element.style.top = agent.y + 'px';
+                    }
+
+                    if (progress === 1) {
+                        clearInterval(interval);
+                        resolve();
+                    }
+                }, 30);
+            });
+        }
+
+        // ── Backend integration (FastAPI + SSE) ─────────────────────────────
+        const API_BASE  = window.location.origin;
+        // Token injected by the server at page-serve time — never stored in
+        // localStorage or cookies; only accessible to this same-origin page.
+        const API_TOKEN = (typeof window.__GUI_TOKEN__ !== 'undefined')
+                        ? window.__GUI_TOKEN__ : '';
+
+        // Authenticated fetch wrapper — attaches X-GUI-Token to every request.
+        function apiFetch(path, opts = {}) {
+            opts.headers = Object.assign({}, opts.headers, { 'X-GUI-Token': API_TOKEN });
+            return fetch(API_BASE + path, opts);
+        }
+
+        let phaseWaiters = {};   // agentKey -> {resolve, reject}
+        let cycleResolver = null;
+        let eventSource = null;
+
+        function setStatus(msg, bad = false) {
+            const body = document.getElementById('statusBody');
+            if (!body) return;
+            body.className = 'status-row' + (bad ? ' bad' : '');
+            body.innerHTML = msg;
+        }
+
+        function appendStatus(line) {
+            const body = document.getElementById('statusBody');
+            if (!body) return;
+            body.innerHTML += '<br>' + line;
+        }
+
+        function ensureEventStream() {
+            if (eventSource && eventSource.readyState !== 2) return;
+            // SSE cannot send custom headers — pass token as query param instead
+            eventSource = new EventSource(
+                API_BASE + '/api/events?token=' + encodeURIComponent(API_TOKEN));
+            eventSource.onmessage = (m) => {
+                try {
+                    const msg = JSON.parse(m.data);
+                    handleBackendEvent(msg.event, msg.data || {});
+                } catch (e) { console.error('SSE parse error', e, m.data); }
+            };
+            eventSource.onerror = () => {
+                console.warn('SSE disconnected — will retry');
+            };
+        }
+
+        function handleBackendEvent(event, data) {
+            switch (event) {
+                case 'connected':
+                    break;
+
+                case 'cycle_started':
+                    setStatus(`🚀 Cycle started for <b>${data.pair}</b>`);
+                    cycleCount++;
+                    updateMetrics();
+                    break;
+
+                case 'phase_started': {
+                    const a = data.agent;
+                    appendStatus(`▶ ${agents[a]?.name || a} entering office...`);
+                    break;
+                }
+
+                case 'phase_completed': {
+                    const a = data.agent;
+                    const s = data.summary || {};
+                    let line = `✓ ${agents[a]?.name || a} done`;
+                    if (a === 'trend' && s.bias)        line += ` — bias=<b>${s.bias}</b> conf=${s.confidence}%`;
+                    if (a === 'analyse' && s.direction) line += ` — <b>${s.direction}</b> @ ${s.entry} RR=${s.rr} conf=${s.confidence}%`;
+                    if (a === 'analyse' && !s.direction) line += ` — <b>NO SIGNAL</b> (${s.reason || 'ICT not met'})`;
+                    if (a === 'trader' && s.status)     line += ` — <b>${s.status}</b>` + (s.ticket ? ` #${s.ticket}` : '');
+                    appendStatus(line);
+                    if (phaseWaiters[a]) { phaseWaiters[a].resolve(s); delete phaseWaiters[a]; }
+                    break;
+                }
+
+                case 'phase_failed': {
+                    const a = data.agent;
+                    appendStatus(`✗ ${agents[a]?.name || a} failed: ${data.reason}`);
+                    if (phaseWaiters[a]) { phaseWaiters[a].reject(new Error(data.reason)); delete phaseWaiters[a]; }
+                    break;
+                }
+
+                case 'cycle_completed':
+                    appendStatus(`🏁 Cycle complete${data.executed ? ' — TRADE EXECUTED' : ' — no trade'}`);
+                    if (data.executed) { tradeCount++; updateMetrics(); }
+                    if (cycleResolver) { cycleResolver({ executed: !!data.executed }); cycleResolver = null; }
+                    break;
+
+                case 'cycle_failed':
+                    setStatus(`✗ Cycle failed: ${data.reason}`, true);
+                    Object.values(phaseWaiters).forEach(w => w.reject(new Error(data.reason)));
+                    phaseWaiters = {};
+                    if (cycleResolver) { cycleResolver({ executed: false, error: data.reason }); cycleResolver = null; }
+                    break;
+
+                case 'info':
+                    appendStatus(`ℹ ${data.message}`);
+                    break;
+            }
+        }
+
+        function waitForPhaseCompletion(agentKey) {
+            return new Promise((resolve, reject) => {
+                phaseWaiters[agentKey] = { resolve, reject };
+            });
+        }
+
+        // Drive the agent animations in lockstep with the backend SSE events.
+        // Backend runs the REAL Trend → Analyse → Trader pipeline and emits
+        // phase_started / phase_completed; we mirror it on screen.
+        async function runAgentBaton(agentKey) {
+            if (!agents[agentKey] || !agents[agentKey].element) {
+                throw new Error(`${agentKey} agent not on the floor`);
+            }
+            await enterOffice(agentKey);
+            try {
+                await waitForPhaseCompletion(agentKey);   // backend does real work
+            } catch (e) {
+                console.warn('Phase failed for', agentKey, e);
+            }
+            await exitOffice(agentKey);
+        }
+
+        async function startCycle() {
+            const pair = (document.getElementById('pair-input').value || '').trim().toUpperCase();
+            if (!pair) {
+                showNotification('❌ Enter a trading pair first', 'error');
+                return;
+            }
+
+            // Required core agents must be on the floor
+            const missing = ['trend', 'analyse', 'trader'].filter(k => !agents[k] || !agents[k].element);
+            if (missing.length) {
+                const labels = missing.map(k => CORE_DEFAULTS[k].name).join(', ');
+                showNotification(`❌ Add these agents first: ${labels}`, 'error');
+                setStatus(`✗ Missing agents: <b>${labels}</b>. Click <b>+ Agent</b> to add them.`, true);
+                return;
+            }
+
+            ensureEventStream();
+            setStatus(`Connecting to backend for <b>${pair}</b>...`);
+
+            // Tell backend to start a real cycle
+            let resp;
+            try {
+                resp = await apiFetch('/api/cycle/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pair })
+                });
+            } catch (e) {
+                setStatus('✗ Service temporarily unavailable. Please try again shortly.', true);
+                return;
+            }
+
+            if (!resp.ok) {
+                const err = await resp.text();
+                setStatus(`✗ Backend rejected: ${err}`, true);
+                return;
+            }
+
+            // Prepare cycle-completion promise so we can sequence cleanly
+            const cyclePromise = new Promise(r => { cycleResolver = r; });
+
+            // Walk Trend-Master in first; backend triggers phase_started:trend
+            // immediately, then ANalyse, then Trader. We mirror that order.
+            try {
+                await runAgentBaton('trend');
+                await new Promise(r => setTimeout(r, 500));   // baton hand-off pause
+                await runAgentBaton('analyse');
+                await new Promise(r => setTimeout(r, 500));
+                await runAgentBaton('trader');
+            } catch (e) {
+                console.warn('Cycle interrupted:', e);
+            }
+
+            await cyclePromise;
+            showNotification('✅ Trading cycle complete');
+        }
+
+        function updateMetrics() {
+            document.getElementById('cycles').textContent = cycleCount;
+            document.getElementById('trades').textContent = tradeCount;
+            const rate = cycleCount > 0 ? Math.floor((tradeCount / cycleCount) * 100) : 0;
+            document.getElementById('winrate').textContent = rate + '%';
+        }
+
+        function zoomIn() {
+            zoomLevel = Math.min(zoomLevel + 0.1, 2);
+            applyZoom();
+        }
+
+        function zoomOut() {
+            zoomLevel = Math.max(zoomLevel - 0.1, 0.5);
+            applyZoom();
+        }
+
+        function applyZoom() {
+            const office = document.getElementById('office');
+            office.style.transform = `scale(${zoomLevel})`;
+            office.style.transformOrigin = 'center center';
+        }
+
+        function loadTaskStatus() {
+            const content = document.getElementById('tasksContent');
+
+            if (!selectedAgent || !agents[selectedAgent]) {
+                content.innerHTML = '<div style="color: #ff6b6b;">❌ No agent selected</div><div style="margin-top: 10px; color: #FFD700;">Click on an agent to view their task status</div>';
+                return;
+            }
+
+            const agent = agents[selectedAgent];
+            const statusColors = {
+                'idle': '#4CAF50',
+                'moving': '#2196F3',
+                'working': '#FF9800'
+            };
+
+            const statusEmojis = {
+                'idle': '✓',
+                'moving': '→',
+                'working': '⚡'
+            };
+
+            const statusDescriptions = {
+                'idle': 'Ready for task assignment - waiting in cafeteria',
+                'moving': 'Moving to office/room',
+                'working': 'Executing task at desk'
+            };
+
+            const color = statusColors[agent.status] || '#FFD700';
+            const emoji = statusEmojis[agent.status] || '?';
+            const description = statusDescriptions[agent.status] || 'Unknown status';
+
+            content.innerHTML = `
+                <div style="margin-bottom: 20px; padding: 15px; background: #1a1a2e; border-left: 4px solid ${color}; border-radius: 4px;">
+                    <div style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">
+                        <span style="color: ${color};">${emoji}</span> ${agent.name}
+                    </div>
+                    <div style="color: ${color}; font-size: 14px; font-weight: bold; margin-bottom: 10px;">
+                        STATUS: ${agent.status.toUpperCase()}
+                    </div>
+                    <div style="color: #FFD700; font-size: 12px;">
+                        ${description}
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px; padding: 10px; background: #1a1a2e; border-left: 3px solid #2196F3;">
+                    <div style="font-weight: bold; margin-bottom: 8px;">📍 Location</div>
+                    <div style="font-size: 12px; color: #b0e0e6;">
+                        ${agent.inCafeteria ? '☕ Cafeteria' : '🏢 Office'}
+                    </div>
+                </div>
+
+                <div style="padding: 10px; background: #1a1a2e; border-left: 3px solid #4CAF50;">
+                    <div style="font-weight: bold; margin-bottom: 8px;">🎨 Agent Info</div>
+                    <div style="font-size: 12px; color: #b0e0e6;">
+                        • Costume: ${agent.costume}<br>
+                        • Type: ${agent.type}
+                    </div>
+                </div>
+            `;
+        }
+
+        function openModal(type) {
+            const modals = {
+                'agent': 'agentModal',
+                'layout': 'layoutModal',
+                'seats': 'seatsModal',
+                'costume': 'costumeModal',
+                'settings': 'settingsModal',
+                'usage': 'usageModal',
+                'tasks': 'tasksModal',
+                'assign': 'assignModal',
+                'credentials': 'credentialsModal'
+            };
+            document.getElementById(modals[type]).classList.add('active');
+            if (type === 'costume') loadCostumeAgents();
+            if (type === 'seats') loadSeatsUI();
+            if (type === 'tasks') loadTaskStatus();
+            if (type === 'assign') loadAgentSelectList();
+            if (type === 'credentials') renderCredentialsFields();
+        }
+
+        function closeModal(type) {
+            const modals = {
+                'agent': 'agentModal',
+                'layout': 'layoutModal',
+                'seats': 'seatsModal',
+                'costume': 'costumeModal',
+                'settings': 'settingsModal',
+                'usage': 'usageModal',
+                'tasks': 'tasksModal',
+                'assign': 'assignModal',
+                'credentials': 'credentialsModal'
+            };
+            document.getElementById(modals[type]).classList.remove('active');
+        }
+
+        // ── Credentials modal (Settings) ─────────────────────────────────────
+        function renderCredentialsFields() {
+            const provider = document.getElementById('credProvider').value;
+            const wrap = document.getElementById('credentialsFields');
+            const fld = (label, id, type='text', ph='') => `
+                <div class="form-group">
+                    <label class="form-label">${label}</label>
+                    <input type="${type}" class="form-input" id="${id}" placeholder="${ph}">
+                </div>`;
+            const testBtn = document.getElementById('telegramTestBtn');
+            if (provider === 'claude') {
+                wrap.innerHTML = `
+                    <div class="form-group">
+                        <label class="form-label">Anthropic API Key</label>
+                        <input type="password" class="form-input" id="cred_claude_key" placeholder="sk-ant-api03-…" autocomplete="off">
+                    </div>
+                    <div style="font-size:11px;color:#b0e0e6;margin-top:-4px;">
+                        Get your key at <b>console.anthropic.com/settings/keys</b>.<br>
+                        The key is stored in your local <b>.env</b> file and never leaves the server.
+                    </div>`;
+                testBtn.style.display = 'none';
+                // Pre-populate indicator if key is already configured
+                apiFetch('/api/credentials/status').then(r => r.json()).then(d => {
+                    if (d.claude_configured) {
+                        const inp = document.getElementById('cred_claude_key');
+                        if (inp) inp.placeholder = '••••••••••••••••  (already configured — paste to replace)';
+                    }
+                }).catch(() => {});
+            } else if (provider === 'mt5') {
+                wrap.innerHTML = fld('Account Number', 'cred_mt5_account', 'text', '12345678')
+                               + fld('Password',       'cred_mt5_password', 'password', '••••••••')
+                               + fld('Server',         'cred_mt5_server', 'text', 'BrokerName-Server');
+                testBtn.style.display = 'none';
+            } else if (provider === 'mt4') {
+                wrap.innerHTML = fld('Account Number', 'cred_mt4_account', 'text', '12345678')
+                               + fld('Password',       'cred_mt4_password', 'password', '••••••••')
+                               + fld('Server',         'cred_mt4_server', 'text', 'BrokerName-Server');
+                testBtn.style.display = 'none';
+            } else if (provider === 'tradingview') {
+                wrap.innerHTML = fld('Username',        'cred_tv_username', 'text', 'your_tv_user')
+                               + fld('Password',        'cred_tv_password', 'password', '••••••••')
+                               + fld('Session Token (optional)', 'cred_tv_token', 'text', 'sessionid=...');
+                testBtn.style.display = 'none';
+            } else if (provider === 'telegram') {
+                wrap.innerHTML = fld('Bot Token', 'cred_tg_bot_token', 'password', '123456:ABC-...')
+                               + fld('Chat ID',   'cred_tg_chat_id',   'text',     '-1001234567890')
+                               + '<div style="font-size:11px;color:#b0e0e6;margin-top:-4px;">'
+                               +   'Create a bot via <b>@BotFather</b>, then add it to your channel/group '
+                               +   'and paste its token + the chat ID below.</div>';
+                testBtn.style.display = 'inline-block';
+            }
+        }
+
+        async function saveCredentials() {
+            const provider = document.getElementById('credProvider').value;
+            const result = document.getElementById('credentialsResult');
+            const body = { provider };
+
+            if (provider === 'claude') {
+                body.api_key = document.getElementById('cred_claude_key').value.trim();
+            } else if (provider === 'mt5') {
+                body.account  = document.getElementById('cred_mt5_account').value.trim();
+                body.password = document.getElementById('cred_mt5_password').value;
+                body.server   = document.getElementById('cred_mt5_server').value.trim();
+            } else if (provider === 'mt4') {
+                body.account  = document.getElementById('cred_mt4_account').value.trim();
+                body.password = document.getElementById('cred_mt4_password').value;
+                body.server   = document.getElementById('cred_mt4_server').value.trim();
+            } else if (provider === 'tradingview') {
+                body.username      = document.getElementById('cred_tv_username').value.trim();
+                body.password      = document.getElementById('cred_tv_password').value;
+                body.session_token = document.getElementById('cred_tv_token').value.trim();
+            } else if (provider === 'telegram') {
+                body.bot_token = document.getElementById('cred_tg_bot_token').value.trim();
+                body.chat_id   = document.getElementById('cred_tg_chat_id').value.trim();
+            }
+
+            result.style.color = '#FFD700';
+            result.textContent = 'Saving...';
+
+            try {
+                const r = await apiFetch('/api/credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    result.style.color = '#f44336';
+                    result.textContent = `✗ ${data.detail || 'Save failed'}`;
+                    return;
+                }
+                if (provider === 'claude') {
+                    result.style.color = '#4CAF50';
+                    result.textContent = '✓ Claude API key saved — agents will use it on the next cycle';
+                } else if (provider === 'mt5') {
+                    result.style.color = data.reconnected ? '#4CAF50' : '#FF9800';
+                    result.textContent = data.reconnected
+                        ? '✓ Saved & MT5 reconnected'
+                        : '⚠ Saved but MT5 reconnect failed — check server/credentials';
+                } else if (provider === 'telegram') {
+                    result.style.color = '#4CAF50';
+                    result.textContent = '✓ Telegram connected — signals will be broadcast on each cycle';
+                } else {
+                    result.style.color = '#4CAF50';
+                    result.textContent = '✓ Saved';
+                }
+                showNotification(`✓ ${provider.toUpperCase()} credentials saved`);
+            } catch (e) {
+                result.style.color = '#f44336';
+                result.textContent = '✗ Backend not reachable';
+            }
+        }
+
+        async function testTelegram() {
+            const result = document.getElementById('credentialsResult');
+            result.style.color = '#FFD700';
+            result.textContent = 'Sending test message…';
+            try {
+                const r = await apiFetch('/api/telegram/test', { method: 'POST' });
+                const data = await r.json().catch(() => ({}));
+                if (r.ok) {
+                    result.style.color = '#4CAF50';
+                    result.textContent = '✓ Test message sent — check your Telegram chat';
+                    showNotification('📡 Telegram test message sent');
+                } else {
+                    result.style.color = '#f44336';
+                    result.textContent = `✗ ${data.detail || 'Test failed'}`;
+                }
+            } catch (e) {
+                result.style.color = '#f44336';
+                result.textContent = '✗ Backend not reachable';
+            }
+        }
+
+        function loadAgentSelectList() {
+            const select = document.getElementById('assignAgent');
+            select.innerHTML = '<option value="">-- Select Agent --</option>';
+            Object.entries(agents).forEach(([type, agent]) => {
+                if (agent.element) {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = agent.name;
+                    select.appendChild(option);
+                }
+            });
+            updateAssignedTasksList();
+        }
+
+        function updateTaskOptions() {
+            const agentSelect = document.getElementById('assignAgent');
+            const taskSelect = document.getElementById('assignTask');
+            const agentType = agentSelect.value;
+
+            if (!agentType) {
+                taskSelect.innerHTML = '<option value="">-- Choose a task --</option>';
+                return;
+            }
+
+            const agent = agents[agentType];
+            const recommendedTasks = {
+                'trend': 'analyze-trend',
+                'analyse': 'detect-patterns',
+                'trader': 'execute-trade'
+            };
+
+            taskSelect.innerHTML = '<option value="">-- Choose a task --</option>';
+            Object.entries(TASK_TYPES).forEach(([taskId, taskName]) => {
+                const option = document.createElement('option');
+                option.value = taskId;
+                option.textContent = taskName;
+                if (recommendedTasks[agentType] === taskId) {
+                    option.textContent += ' (Recommended)';
+                }
+                taskSelect.appendChild(option);
+            });
+        }
+
+        function assignTask() {
+            const agentType = document.getElementById('assignAgent').value;
+            const taskId = document.getElementById('assignTask').value;
+
+            if (!agentType || !taskId) {
+                showNotification('⚠️ Select both agent and task', 'error');
+                return;
+            }
+
+            const taskName = TASK_TYPES[taskId];
+            agents[agentType].assignedTask = taskId;
+            document.getElementById('assignAgent').value = '';
+            document.getElementById('assignTask').innerHTML = '<option value="">-- Choose a task --</option>';
+            updateAssignedTasksList();
+            showNotification(`✓ ${agents[agentType].name} → ${taskName}`);
+        }
+
+        function updateAssignedTasksList() {
+            const list = document.getElementById('assignedTasksList');
+            const assignedAgents = Object.entries(agents).filter(([_, agent]) => agent.element && agent.assignedTask);
+
+            if (assignedAgents.length === 0) {
+                list.innerHTML = '<div style="color: #999; font-size: 12px;">No tasks assigned yet</div>';
+                return;
+            }
+
+            list.innerHTML = assignedAgents.map(([type, agent]) => `
+                <div style="background: #1a1a2e; padding: 10px; border-left: 3px solid #4CAF50; border-radius: 3px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 12px;">
+                        <strong>${agent.name}</strong><br>
+                        <span style="color: #b0e0e6;">${TASK_TYPES[agent.assignedTask]}</span>
+                    </div>
+                    <button class="agent-item-btn" onclick="clearTask('${type}')" style="background: #f44336;">Remove</button>
+                </div>
+            `).join('');
+        }
+
+        function clearTask(agentType) {
+            agents[agentType].assignedTask = null;
+            updateAssignedTasksList();
+        }
+
+        // ── Live clock ────────────────────────────────────────────────────────
+        function tickClock() {
+            const now = new Date();
+            const h = now.getUTCHours(), m = now.getUTCMinutes(), s = now.getUTCSeconds();
+
+            // Title bar text
+            const pad = n => String(n).padStart(2, '0');
+            const el = document.getElementById('live-clock');
+            if (el) el.textContent = `${pad(h)}:${pad(m)}:${pad(s)} UTC`;
+
+            // Kitchen wall clock hands
+            const hDeg = (h % 12) * 30 + m * 0.5;
+            const mDeg = m * 6 + s * 0.1;
+            const sDeg = s * 6;
+            const ckH = document.getElementById('ck-h');
+            const ckM = document.getElementById('ck-m');
+            const ckS = document.getElementById('ck-s');
+            if (ckH) ckH.style.transform = `rotate(${hDeg}deg)`;
+            if (ckM) ckM.style.transform = `rotate(${mDeg}deg)`;
+            if (ckS) ckS.style.transform = `rotate(${sDeg}deg)`;
+        }
+
+        // Auto-spawn the three core agents so the office is alive on load.
+        function autoSpawnCoreAgents() {
+            const spawnOrder = ['trend', 'analyse', 'trader'];
+            const names      = { trend: 'Trend-Master', analyse: 'Analyse-Master', trader: 'Trader-Master' };
+            const costumes   = { trend: 'costume-1',    analyse: 'costume-2',      trader: 'costume-3' };
+            // Spread initial positions across the main-office
+            const initPos    = { trend: { x: 30, y: 40 }, analyse: { x: 80, y: 60 }, trader: { x: 50, y: 80 } };
+
+            spawnOrder.forEach(role => {
+                if (agents[role] && agents[role].element) return;   // already on floor
+                agents[role] = {
+                    name: names[role], costume: costumes[role], type: role,
+                    x: initPos[role].x, y: initPos[role].y,
+                    status: 'idle', inCafeteria: false, assignedTask: null,
+                    element: null, location: 'main-office', seat: null, runningCycle: false
+                };
+                createAgentElement(role);
+            });
+            updateAgentsList();
+        }
+
+        // Initialize on load.
+        window.addEventListener('load', async () => {
+            tickClock();
+            setInterval(tickClock, 1000);
+
+            updateAgentsList();
+            updateMetrics();
+            startPets();
+            ensureEventStream();
+            try {
+                const r = await apiFetch('/api/status');
+                if (r.ok) {
+                    const s = await r.json();
+                    if (!s.connected) {
+                        setStatus('⚠ Data provider not connected — open <b>⚙ Settings</b> to enter credentials.', true);
+                    } else {
+                        setStatus(`✅ Ready (${s.environment}) — select pair and click <b>START CYCLE</b>.`);
+                    }
+                } else {
+                    setStatus('⚠ Backend reachable but unhealthy.', true);
+                }
+            } catch (e) {
+                setStatus('🟡 GUI running in offline mode — backend not detected.');
+            }
+        });
+
+        let selectedAgent = null;
+
+        // Connect zoom buttons
+        document.addEventListener('DOMContentLoaded', () => {
+            const zoomBtns = document.querySelectorAll('.zoom-btn');
+            zoomBtns[0].onclick = zoomIn;
+            zoomBtns[1].onclick = zoomOut;
+        });
+    </script>
+</body>
+</html>

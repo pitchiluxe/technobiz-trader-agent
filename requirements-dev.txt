@@ -1,0 +1,14 @@
+# Development-only dependencies — NOT installed in the Docker production image.
+# Install with:  pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.12.0
+pytest-cov>=4.1.0
+
+# Code quality
+black>=23.12.0
+pylint>=3.0.0
+isort>=5.13.2

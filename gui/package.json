@@ -1,0 +1,105 @@
+{
+  "name": "technobiztrader",
+  "version": "1.0.0",
+  "description": "TechnobizTrader — 3-Agent ICT Trading System by My Digital Solutions",
+  "author": {
+    "name": "My Digital Solutions",
+    "email": "erickomari243@gmail.com"
+  },
+  "license": "SEE LICENSE IN ../LICENSE.txt",
+  "copyright": "Copyright © 2026 My Digital Solutions",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^30.5.1",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.mydigitalsolutions.technobiztrader",
+    "productName": "TechnobizTrader",
+    "copyright": "Copyright © 2026 My Digital Solutions",
+    "icon": "assets/icon.ico",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**",
+      "assets/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../",
+        "to": "backend",
+        "filter": [
+          "minecraft_trading_office.html",
+          "gui_server.py",
+          "main.py",
+          "agents/**",
+          "api/**",
+          "config/**",
+          "database/**",
+          "market_data/**",
+          "utils/**",
+          "requirements.txt",
+          "requirements-app.txt",
+          "LICENSE.txt",
+          "docs/USER_MANUAL.md"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.finance"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "Finance"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TechnobizTrader",
+      "license": "../LICENSE.txt",
+      "artifactName": "TechnobizTrader-Setup-${version}.exe"
+    }
+  }
+}
