@@ -9,15 +9,23 @@ Security hardening vs initial version:
 
 import logging
 import os
+import secrets
 from contextlib import asynccontextmanager
+from typing import Optional
 
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException, Security, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Request, Security, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.security.api_key import APIKeyHeader
+from pydantic import BaseModel
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Token injected into the HTML at serve time so the page can authenticate
+# API calls. Set GUI_SECRET_KEY in Vercel env vars to keep it stable across
+# deployments; otherwise a new random token is generated each cold start.
+_GUI_SECRET: str = os.getenv("GUI_SECRET_KEY", "").strip() or secrets.token_hex(32)
 
 from api.routes import config_router, risk_router, signals_router, trades_router, trends_router
 from api.websocket_manager import ConnectionManager
@@ -25,23 +33,28 @@ from api.websocket_manager import ConnectionManager
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# API key authentication
+# Authentication — accepts either x-api-key or X-GUI-Token
 # ─────────────────────────────────────────────────────────────────────────────
 _DASHBOARD_API_KEY = os.getenv("DASHBOARD_API_KEY", "")
-_api_key_header    = APIKeyHeader(name="x-api-key", auto_error=False)
+_api_key_header    = APIKeyHeader(name="x-api-key",   auto_error=False)
+_gui_token_header  = APIKeyHeader(name="X-GUI-Token", auto_error=False)
 
 
-async def require_api_key(key: str = Security(_api_key_header)) -> str:
-    """
-    Validate the x-api-key header on protected routes.
-    If DASHBOARD_API_KEY is not set in .env, auth is skipped (dev mode only).
-    """
-    if not _DASHBOARD_API_KEY:
-        # No key configured — allow all (development mode)
+async def require_api_key(
+    api_key:   str = Security(_api_key_header),
+    gui_token: str = Security(_gui_token_header),
+) -> str:
+    token = api_key or gui_token or ""
+    # If neither secret is configured, allow all requests (dev / demo mode)
+    if not _DASHBOARD_API_KEY and not _GUI_SECRET:
         return "dev-mode"
-    if key != _DASHBOARD_API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid or missing API key")
-    return key
+    if secrets.compare_digest(token, _GUI_SECRET):
+        return token
+    if _DASHBOARD_API_KEY and secrets.compare_digest(token, _DASHBOARD_API_KEY):
+        return token
+    if not _DASHBOARD_API_KEY:
+        return "dev-mode"
+    raise HTTPException(status_code=403, detail="Invalid or missing API key")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -134,19 +147,96 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Static HTML pages
+# HTML serving — injects window.__GUI_TOKEN__ so the page can auth API calls
 # ─────────────────────────────────────────────────────────────────────────────
+def _serve_html(filename: str) -> HTMLResponse:
+    path = os.path.join(_PROJECT_ROOT, filename)
+    html = open(path, encoding="utf-8").read()
+    injection = f'<script>window.__GUI_TOKEN__="{_GUI_SECRET}";</script>'
+    html = html.replace("</head>", injection + "\n</head>", 1)
+    return HTMLResponse(html)
+
 @app.get("/", include_in_schema=False)
 async def root():
-    return FileResponse(os.path.join(_PROJECT_ROOT, "minecraft_trading_office.html"))
+    return _serve_html("minecraft_trading_office.html")
 
 @app.get("/minecraft_trading_office.html", include_in_schema=False)
 async def serve_minecraft_office():
-    return FileResponse(os.path.join(_PROJECT_ROOT, "minecraft_trading_office.html"))
+    return _serve_html("minecraft_trading_office.html")
 
 @app.get("/trading_command_center.html", include_in_schema=False)
 async def serve_trading_center():
-    return FileResponse(os.path.join(_PROJECT_ROOT, "trading_command_center.html"))
+    return _serve_html("trading_command_center.html")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GUI endpoints expected by minecraft_trading_office.html
+# ─────────────────────────────────────────────────────────────────────────────
+@app.get("/api/status", tags=["System"])
+async def status():
+    """Returns backend status — called by the Settings page health check."""
+    return {
+        "status": "online",
+        "connected": False,
+        "provider": os.getenv("DATA_PROVIDER", "demo"),
+        "mode": "demo",
+        "version": "1.1.0",
+    }
+
+@app.get("/api/credentials/status", tags=["System"])
+async def credentials_status():
+    """Reports which credentials are already configured via environment variables."""
+    return {
+        "claude_configured":       bool(os.getenv("CLAUDE_API_KEY")),
+        "mt5_configured":          bool(os.getenv("MT5_ACCOUNT")),
+        "tradingview_configured":  bool(os.getenv("TRADINGVIEW_USERNAME")),
+        "telegram_configured":     bool(os.getenv("TELEGRAM_BOT_TOKEN")),
+    }
+
+class CredentialsRequest(BaseModel):
+    provider:      str
+    api_key:       Optional[str] = None
+    account:       Optional[str] = None
+    password:      Optional[str] = None
+    server:        Optional[str] = None
+    username:      Optional[str] = None
+    session_token: Optional[str] = None
+    bot_token:     Optional[str] = None
+    chat_id:       Optional[str] = None
+
+@app.post("/api/credentials", tags=["System"])
+async def save_credentials(req: CredentialsRequest, _: str = Depends(require_api_key)):
+    """
+    On Vercel, credentials cannot be persisted to disk.
+    Set them as Environment Variables in your Vercel Project Settings instead.
+    This endpoint validates the input and acknowledges receipt for the session.
+    """
+    provider = req.provider.lower().strip()
+    if provider == "claude":
+        if not req.api_key or not req.api_key.startswith("sk-ant-"):
+            raise HTTPException(400, "A valid Anthropic key starting with 'sk-ant-' is required")
+        os.environ["CLAUDE_API_KEY"] = req.api_key
+    elif provider in ("mt5", "mt4"):
+        if not (req.account and req.password and req.server):
+            raise HTTPException(400, f"{provider.upper()} requires account, password, server")
+        os.environ["MT5_ACCOUNT"]  = req.account
+        os.environ["MT5_PASSWORD"] = req.password
+        os.environ["MT5_SERVER"]   = req.server
+    elif provider == "tradingview":
+        if not req.username:
+            raise HTTPException(400, "TradingView requires a username")
+        os.environ["TRADINGVIEW_USERNAME"] = req.username
+        if req.password:       os.environ["TRADINGVIEW_PASSWORD"] = req.password
+        if req.session_token:  os.environ["TRADINGVIEW_SESSION"]  = req.session_token
+    elif provider == "telegram":
+        if not (req.bot_token and req.chat_id):
+            raise HTTPException(400, "Telegram requires bot_token and chat_id")
+        os.environ["TELEGRAM_BOT_TOKEN"] = req.bot_token
+        os.environ["TELEGRAM_CHAT_ID"]   = req.chat_id
+    else:
+        raise HTTPException(400, f"Unknown provider: {provider}")
+
+    return {"ok": True, "provider": provider,
+            "note": "Saved for this session. Add to Vercel Environment Variables for persistence."}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Health check — always public, required by Docker/K8s probes
