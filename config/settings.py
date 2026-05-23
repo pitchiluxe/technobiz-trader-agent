@@ -2,9 +2,16 @@
 
 import logging
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
+_ROOT = Path(__file__).parent.parent  # project / backend root
 load_dotenv(override=False)
+load_dotenv(str(_ROOT / ".env.local"), override=True)  # AI config (OpenRouter / Ollama)
+# Also honour a userData override (set by Electron's TECHNOBIZ_USERDATA)
+_userdata_env = os.getenv("TECHNOBIZ_USERDATA", "")
+if _userdata_env:
+    load_dotenv(os.path.join(_userdata_env, ".env.local"), override=True)
 
 _log = logging.getLogger(__name__)
 
@@ -18,7 +25,21 @@ class Settings:
     ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
     DEBUG = ENVIRONMENT != "production" and os.getenv("DEBUG", "False").lower() == "true"
 
-    # Foundry/AI Configuration (Required in production)
+    # AI Provider — openrouter | claude | ollama
+    AI_PROVIDER = os.getenv("AI_PROVIDER", "openrouter").lower()
+
+    # AI Configuration — OpenRouter / Anthropic direct
+    ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "")           # e.g. https://openrouter.ai/api
+    ANTHROPIC_AUTH_TOKEN = (
+        os.getenv("ANTHROPIC_AUTH_TOKEN") or os.getenv("ANTHROPIC_API_KEY", "")
+    )
+    ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+
+    # Ollama (local) configuration
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "llama3.2")
+
+    # Foundry/AI Configuration (legacy — kept for backwards compatibility)
     FOUNDRY_PROJECT_ENDPOINT = os.getenv("FOUNDRY_PROJECT_ENDPOINT", "")
     FOUNDRY_MODEL_DEPLOYMENT_NAME = os.getenv("FOUNDRY_MODEL_DEPLOYMENT_NAME", "")
     FOUNDRY_API_KEY = os.getenv("FOUNDRY_API_KEY", "")
@@ -42,6 +63,11 @@ class Settings:
     MT5_PASSWORD = os.getenv("MT5_PASSWORD", "")
     MT5_SERVER = os.getenv("MT5_SERVER", "")
 
+    # Market Data (MT4 — uses same MT5 Python library via broker bridge)
+    MT4_ACCOUNT = os.getenv("MT4_ACCOUNT", "")
+    MT4_PASSWORD = os.getenv("MT4_PASSWORD", "")
+    MT4_SERVER = os.getenv("MT4_SERVER", "")
+
     ALPACA_API_KEY = os.getenv("ALPACA_API_KEY", "")
     ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY", "")
 
@@ -61,13 +87,12 @@ class Settings:
     DATABASE_URL = os.getenv("DATABASE_URL", _default_db)
     SQLALCHEMY_ECHO = DEBUG and ENVIRONMENT == "development"
 
-    # Enforce PostgreSQL (or other non-SQLite DB) in production
+    # SQLite is allowed in all environments for this desktop app.
+    # For cloud/server deployments, set DATABASE_URL to a PostgreSQL connection string.
     if ENVIRONMENT == "production" and DATABASE_URL.startswith("sqlite"):
-        raise RuntimeError(
-            "SQLite is not supported in production. "
-            "Set DATABASE_URL to a PostgreSQL connection string, e.g.:\n"
-            "  DATABASE_URL=postgresql://user:password@host:5432/technobiz_trader\n"
-            "See docker-compose.yml for the recommended setup."
+        _log.warning(
+            "Running in production with SQLite. For cloud deployments, "
+            "set DATABASE_URL to a PostgreSQL connection string."
         )
 
     # Logging — write to writable userData dir when installed, else local logs/

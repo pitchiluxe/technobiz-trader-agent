@@ -85,7 +85,11 @@ async def get_config_status():
     creds = _load_credentials()
     return StatusResponse(
         is_first_run=len(creds) == 0,
-        claude_configured=bool(creds.get("claude_api_key")),
+        claude_configured=bool(
+            os.getenv("ANTHROPIC_AUTH_TOKEN") or
+            os.getenv("ANTHROPIC_API_KEY") or
+            creds.get("claude_api_key")
+        ),
         mt5_configured=bool(
             creds.get("mt5_account") and creds.get("mt5_password") and creds.get("mt5_server")
         ),
@@ -130,12 +134,18 @@ async def validate_connections():
     creds = _load_credentials()
     results: Dict[str, Any] = {}
 
-    # Claude — validate key format only (no API call, avoids billing errors)
-    claude_key = creds.get("claude_api_key") or ""
-    if claude_key.startswith("sk-ant-"):
-        results["claude"] = {"ok": True, "message": "API key configured"}
-    elif claude_key:
-        results["claude"] = {"ok": False, "message": "Invalid key format (expected sk-ant-...)"}
+    # AI key — accept Anthropic (sk-ant-) or OpenRouter (sk-or-v1-) keys
+    ai_key = (
+        os.getenv("ANTHROPIC_AUTH_TOKEN") or
+        os.getenv("ANTHROPIC_API_KEY") or
+        creds.get("claude_api_key") or ""
+    )
+    if ai_key.startswith("sk-ant-"):
+        results["claude"] = {"ok": True, "message": "Anthropic API key configured"}
+    elif ai_key.startswith("sk-or-v1-"):
+        results["claude"] = {"ok": True, "message": "OpenRouter API key configured"}
+    elif ai_key:
+        results["claude"] = {"ok": False, "message": "Unrecognised key format"}
     else:
         results["claude"] = {"ok": False, "message": "Not configured"}
 
@@ -201,10 +211,19 @@ async def claude_interpret(body: InterpretRequest):
     - Structured agent action (symbol, timeframes, parameters)
     - Market insight / explanation
     """
+    # Prefer env-based keys (OpenRouter / Anthropic) over stored credential
     creds = _load_credentials()
-    api_key = creds.get("claude_api_key") or os.getenv("CLAUDE_API_KEY", "")
+    api_key = (
+        os.getenv("ANTHROPIC_AUTH_TOKEN") or
+        os.getenv("ANTHROPIC_API_KEY") or
+        creds.get("claude_api_key") or
+        os.getenv("CLAUDE_API_KEY", "")
+    )
     if not api_key:
-        raise HTTPException(status_code=400, detail="Claude API key not configured")
+        raise HTTPException(
+            status_code=400,
+            detail="AI API key not configured. Set ANTHROPIC_AUTH_TOKEN in .env.local",
+        )
 
     # Lazy import — anthropic is optional; backend must start even if not installed
     try:
@@ -215,8 +234,14 @@ async def claude_interpret(body: InterpretRequest):
             detail="anthropic package is not installed. Run: pip install anthropic>=0.25.0",
         )
 
+    base_url = os.getenv("ANTHROPIC_BASE_URL") or None
+    model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+
     try:
-        client = _anthropic.Anthropic(api_key=api_key)
+        client_kwargs: dict = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        client = _anthropic.Anthropic(**client_kwargs)
 
         system_prompt = (
             "You are TechnobizTrader's AI assistant. "
@@ -235,14 +260,13 @@ async def claude_interpret(body: InterpretRequest):
         }
 
         response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model=model,
             max_tokens=512,
             system=system_prompt + "\n\n" + context_hints.get(body.agent_context, ""),
             messages=[{"role": "user", "content": body.command}],
         )
 
         raw = response.content[0].text.strip()
-        # Try to parse as JSON; fall back to wrapping in insight
         try:
             parsed = json.loads(raw)
         except json.JSONDecodeError:
@@ -251,13 +275,13 @@ async def claude_interpret(body: InterpretRequest):
         return {"success": True, "result": parsed}
 
     except _anthropic.AuthenticationError:
-        logger.warning("[Claude] Invalid API key")
-        raise HTTPException(status_code=401, detail="Invalid Claude API key. Please update it in Settings.")
+        logger.warning("[AI] Invalid API key")
+        raise HTTPException(status_code=401, detail="Invalid API key. Please check your ANTHROPIC_AUTH_TOKEN in .env.local.")
     except _anthropic.APIConnectionError as exc:
-        logger.warning("[Claude] Connection error: %s", exc)
-        raise HTTPException(status_code=503, detail="Could not reach Claude API. Check your internet connection.")
+        logger.warning("[AI] Connection error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not reach AI provider. Check your internet connection.")
     except Exception as exc:
-        logger.exception("[Claude] Interpretation failed")
+        logger.exception("[AI] Interpretation failed")
         raise HTTPException(status_code=500, detail=str(exc))
 
 

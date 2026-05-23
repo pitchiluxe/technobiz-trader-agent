@@ -3149,6 +3149,14 @@
             <div class="control-panel">
                 <input type="text" class="input-pair" id="pair-input" placeholder="Enter pair" value="EURUSD">
                 <button class="btn-start" onclick="startCycle()">START CYCLE</button>
+                <label style="display:inline-flex;align-items:center;gap:4px;color:#FFD700;font-size:11px;margin-left:6px;cursor:pointer;">
+                    <input type="checkbox" id="auto-cycle-toggle" onchange="toggleAutoCycle()" style="cursor:pointer;">
+                    Auto
+                </label>
+                <input type="number" id="auto-cycle-interval" value="15" min="1" max="60"
+                       title="Auto-cycle interval in minutes"
+                       style="width:38px;padding:3px 4px;background:#1a1a2e;color:#FFD700;border:1px solid #444;border-radius:4px;font-size:11px;text-align:center;margin-left:2px;">
+                <span style="color:#aaa;font-size:10px;">min</span>
                 <div class="metrics-display">
                     <div class="metric">Cycles: <span id="cycles">0</span></div>
                     <div class="metric">Trades: <span id="trades">0</span></div>
@@ -3255,11 +3263,17 @@
             <div class="form-group">
                 <label class="form-label">Provider</label>
                 <select class="form-input" id="credProvider" onchange="renderCredentialsFields()">
-                    <option value="claude">Claude AI (Anthropic)</option>
-                    <option value="mt5">MetaTrader 5</option>
-                    <option value="mt4">MetaTrader 4</option>
-                    <option value="tradingview">TradingView</option>
-                    <option value="telegram">Telegram (signal broadcast)</option>
+                    <optgroup label="── AI Model ──────────────────────">
+                        <option value="openrouter">OpenRouter (Free Cloud Models)</option>
+                        <option value="ollama">Ollama (Local Free Models)</option>
+                        <option value="claude">Claude (Anthropic Direct)</option>
+                    </optgroup>
+                    <optgroup label="── Data / Broker ─────────────────">
+                        <option value="mt5">MetaTrader 5</option>
+                        <option value="mt4">MetaTrader 4</option>
+                        <option value="tradingview">TradingView</option>
+                        <option value="telegram">Telegram (signal broadcast)</option>
+                    </optgroup>
                 </select>
             </div>
 
@@ -3877,14 +3891,38 @@
         }
 
         const TASK_TYPES = {
-            'analyze-trend':   '📊 Analyze Market Trend',
-            'detect-patterns': '🔍 Detect ICT Patterns',
-            'execute-trade':   '💰 Execute Trade',
-            'assess-risk':     '⚠️ Assess Portfolio Risk',
-            'collect-data':    '📡 Collect Market Data',
-            'check-news':      '📰 Check News Events',
-            'manage-portfolio':'💼 Manage Portfolio',
+            'analyze-trend':    '📊 Analyze Market Trend',
+            'detect-patterns':  '🔍 Detect ICT Patterns',
+            'execute-trade':    '💰 Execute Trade',
+            'assess-risk':      '⚠️ Assess Portfolio Risk',
+            'collect-data':     '📡 Collect Market Data',
+            'check-news':       '📰 Check News Events',
+            'manage-portfolio': '💼 Manage Portfolio',
         };
+
+        // Maps each task ID → the backend role key (also = the office room prefix)
+        const TASK_TO_ROLE = {
+            'analyze-trend':    'trend',
+            'detect-patterns':  'analyse',
+            'execute-trade':    'trader',
+            'assess-risk':      'risk',
+            'collect-data':     'data',
+            'check-news':       'news',
+            'manage-portfolio': 'portfolio',
+        };
+
+        // For each backend role, find which agent (core or custom) is assigned to it.
+        // Core agents fill role slots directly (agents['trend'] etc.).
+        // Custom agents are matched by their assignedTask.
+        function findAgentForRole(roleKey) {
+            if (agents[roleKey]?.element) return roleKey;
+            const taskKey = Object.keys(TASK_TO_ROLE).find(t => TASK_TO_ROLE[t] === roleKey);
+            if (taskKey) {
+                const found = Object.entries(agents).find(([_, a]) => a.element && a.assignedTask === taskKey);
+                if (found) return found[0];
+            }
+            return null;
+        }
 
         const COSTUMES = {
             // ── Men ──────────────────────────────────────────────────────
@@ -5431,32 +5469,30 @@
             await enterFromHallway(agentId, targetRoomId);
         }
 
-        // Send a core agent to their office for a trading cycle.
-        // Agent walks from wherever they are to their designated room, then sits at desk.
-        async function enterOffice(type) {
-            const agent = agents[type];
-            const pos = ROOM_POSITIONS[type];
+        // Send any agent (core or custom) to the office for their role.
+        // agentId  = key in the agents{} map (e.g. 'trend', 'custom-3')
+        // roleKey  = backend role (e.g. 'trend') — determines which room they go to
+        async function enterOffice(agentId, roleKey) {
+            const agent = agents[agentId];
+            if (!agent?.element) return;
+            const room = ROOM_POSITIONS[roleKey]?.room;
+            if (!room) return;
 
-            // Stop idle wandering immediately
             agent.runningCycle = true;
             agent.status = 'working';
 
-            // Brief pause to let any in-progress animation step finish cleanly
             await new Promise(r => setTimeout(r, 300));
             if (!agent.element) return;
 
-            // Walk through hallways to the agent's designated room
             agent.element.classList.remove('sitting', 'couch-sit');
-            await transitTo(type, pos.room);
+            await transitTo(agentId, room);
 
-            // Sit at desk
             agent.element.classList.remove('walking', 'sitting', 'couch-sit');
             agent.element.classList.add('desk-sit', 'working');
-            setDot(type, 's-working');
+            setDot(agentId, 's-working');
 
-            // Snap to desk chair position after layout
             await new Promise(r => requestAnimationFrame(r));
-            const deskPos = getDeskSeatPos(pos.room);
+            const deskPos = getDeskSeatPos(room);
             if (deskPos) {
                 agent.x = deskPos.x;
                 agent.y = deskPos.y;
@@ -5464,53 +5500,46 @@
                 agent.element.style.top  = deskPos.y + 'px';
             }
 
-            // Activate monitor glow
-            const roomEl = document.getElementById(pos.room);
+            const roomEl = document.getElementById(room);
             if (roomEl) {
                 const mon = roomEl.querySelector('.monitor');
                 if (mon) mon.classList.add('active');
                 roomEl.classList.add('room-lit');
             }
 
-            // Use the agent's assigned task label in the speech bubble — falls back
-            // to the canonical label if no custom task was assigned.
-            const taskBubbleLabel = agent.assignedTask
+            const taskLabel = agent.assignedTask
                 ? (TASK_TYPES[agent.assignedTask] || agent.assignedTask)
-                : null;
-            const defaultBubbles = {
-                trend:   'Analyzing Market Trend',
-                analyse: 'Detecting ICT Patterns',
-                trader:  'Executing Trade'
-            };
-            showBubble(type, `⚡ ${taskBubbleLabel || defaultBubbles[type] || 'Working'}…`, 8000);
+                : (TASK_TYPES[Object.keys(TASK_TO_ROLE).find(t => TASK_TO_ROLE[t] === roleKey)] || roleKey);
+            showBubble(agentId, `⚡ ${taskLabel}…`, 8000);
             updateAgentsList();
             await new Promise(r => setTimeout(r, 400));
         }
 
-        // Return a core agent to idle wandering in main-office after their cycle phase.
-        async function exitOffice(type) {
-            const agent = agents[type];
+        // Return an agent to idle wandering in main-office after their cycle phase.
+        // agentId = key in agents{}; roleKey = backend role (determines which room to deactivate)
+        async function exitOffice(agentId, roleKey) {
+            const agent = agents[agentId];
+            if (!agent?.element) return;
 
-            // Remove desk posture
             agent.element.classList.remove('sitting', 'working', 'couch-sit', 'desk-sit');
             agent.element.classList.add('walking');
             agent.status = 'idle';
             agent.runningCycle = false;
-            agent.assignedTask = null;   // release task so idle loops can resume
-            setDot(type, 's-idle');
+            setDot(agentId, 's-idle');
 
-            // Deactivate monitor glow
-            const exRoom = document.getElementById(ROOM_POSITIONS[type]?.room);
-            if (exRoom) {
-                const mon = exRoom.querySelector('.monitor');
-                if (mon) mon.classList.remove('active');
-                exRoom.classList.remove('room-lit');
+            const room = ROOM_POSITIONS[roleKey]?.room;
+            if (room) {
+                const exRoom = document.getElementById(room);
+                if (exRoom) {
+                    const mon = exRoom.querySelector('.monitor');
+                    if (mon) mon.classList.remove('active');
+                    exRoom.classList.remove('room-lit');
+                }
             }
             updateAgentsList();
 
-            // Walk back to main office to wander with the others
-            await transitTo(type, 'main-office');
-            startIdleLoop(type);
+            await transitTo(agentId, 'main-office');
+            startIdleLoop(agentId);
         }
 
         async function walkToPoint(type, targetX, targetY) {
@@ -5560,9 +5589,12 @@
             return fetch(API_BASE + path, opts);
         }
 
-        let phaseWaiters = {};   // agentKey -> {resolve, reject}
+        let phaseWaiters = {};       // agentKey -> {resolve, reject}
+        let pendingPhaseEvents = {}; // buffer for events that arrive before waiter registers
         let cycleResolver = null;
         let eventSource = null;
+        let autoCycleTimer = null;
+        let autoCycleRunning = false;
 
         function setStatus(msg, bad = false) {
             const body = document.getElementById('statusBody');
@@ -5615,36 +5647,53 @@
 
                 case 'phase_completed': {
                     const a = data.agent;
-                    const s = data;  // backend sends fields directly (no summary nesting)
+                    const s = data;
                     let line = `✓ ${agents[a]?.name || a} done`;
                     if (a === 'trend' && s.bias)          line += ` — bias=<b>${s.bias}</b> conf=${s.confidence}%`;
                     if (a === 'analyse' && s.direction)   line += ` — <b>${s.direction}</b>${s.entry_type ? ' | '+s.entry_type : ''} conf=${s.confidence}%`;
-                    if (a === 'analyse' && !s.direction)  line += ` — <b>NO SIGNAL</b> (${s.reason || 'ICT not met'})`;
+                    if (a === 'analyse' && !s.direction)  line += ` — <b>NO SIGNAL</b> (ICT conditions not met or outside kill zone)`;
                     if (a === 'trader' && s.signal_id)    line += ` — <b>EXECUTED</b> #${s.signal_id}${s.entry ? ' @ '+s.entry : ''}`;
                     if (a === 'trader' && !s.signal_id)   line += ` — <b>NO EXECUTION</b>`;
                     appendStatus(line);
-                    if (phaseWaiters[a]) { phaseWaiters[a].resolve(s); delete phaseWaiters[a]; }
+                    // Resolve waiter if registered; otherwise buffer for late registration
+                    if (phaseWaiters[a]) {
+                        phaseWaiters[a].resolve(s);
+                        delete phaseWaiters[a];
+                    } else {
+                        pendingPhaseEvents[a] = { ok: true, data: s };
+                    }
                     break;
                 }
 
                 case 'phase_failed': {
                     const a = data.agent;
                     appendStatus(`✗ ${agents[a]?.name || a} failed: ${data.reason}`);
-                    if (phaseWaiters[a]) { phaseWaiters[a].reject(new Error(data.reason)); delete phaseWaiters[a]; }
+                    if (phaseWaiters[a]) {
+                        phaseWaiters[a].reject(new Error(data.reason));
+                        delete phaseWaiters[a];
+                    } else {
+                        pendingPhaseEvents[a] = { ok: false, reason: data.reason };
+                    }
                     break;
                 }
 
                 case 'cycle_completed':
-                    appendStatus(`🏁 Cycle complete${data.result === 'trade_executed' ? ' — TRADE EXECUTED' : ' — no trade'}`);
+                    appendStatus(`🏁 Cycle complete${data.result === 'trade_executed' ? ' — <b>TRADE EXECUTED ✅</b>' : data.result === 'no_signal' ? ' — no signal (kill zone or ICT)' : ' — no trade'}`);
                     if (data.result === 'trade_executed') { tradeCount++; updateMetrics(); }
-                    if (cycleResolver) { cycleResolver({ executed: data.result === 'trade_executed' }); cycleResolver = null; }
+                    pendingPhaseEvents = {};
+                    if (cycleResolver) { cycleResolver({ executed: data.result === 'trade_executed', result: data.result }); cycleResolver = null; }
                     break;
 
                 case 'cycle_failed':
-                    setStatus(`✗ Cycle failed: ${data.reason}`, true);
+                    if (data.result === 'no_provider') {
+                        setStatus(`⚙ ${data.reason}`, false);
+                    } else {
+                        setStatus(`✗ Cycle failed: ${data.reason}`, true);
+                    }
                     Object.values(phaseWaiters).forEach(w => w.reject(new Error(data.reason)));
                     phaseWaiters = {};
-                    if (cycleResolver) { cycleResolver({ executed: false, error: data.reason }); cycleResolver = null; }
+                    pendingPhaseEvents = {};
+                    if (cycleResolver) { cycleResolver({ executed: false, error: data.reason, result: data.result }); cycleResolver = null; }
                     break;
 
                 case 'info':
@@ -5653,26 +5702,48 @@
             }
         }
 
-        function waitForPhaseCompletion(agentKey) {
+        function waitForPhaseCompletion(agentKey, timeoutMs = 120000) {
+            // Backend already finished this phase before we started watching — resolve immediately
+            if (pendingPhaseEvents[agentKey]) {
+                const cached = pendingPhaseEvents[agentKey];
+                delete pendingPhaseEvents[agentKey];
+                return cached.ok
+                    ? Promise.resolve(cached.data)
+                    : Promise.reject(new Error(cached.reason));
+            }
             return new Promise((resolve, reject) => {
-                phaseWaiters[agentKey] = { resolve, reject };
+                // Safety timeout — agent exits desk after 2 min even if event is lost
+                const timer = setTimeout(() => {
+                    delete phaseWaiters[agentKey];
+                    resolve({ timeout: true });
+                }, timeoutMs);
+                phaseWaiters[agentKey] = {
+                    resolve: d => { clearTimeout(timer); resolve(d); },
+                    reject:  e => { clearTimeout(timer); reject(e);  },
+                };
             });
         }
 
         // Drive the agent animations in lockstep with the backend SSE events.
         // Backend runs the REAL Trend → Analyse → Trader pipeline and emits
         // phase_started / phase_completed; we mirror it on screen.
-        async function runAgentBaton(agentKey) {
-            if (!agents[agentKey] || !agents[agentKey].element) {
-                throw new Error(`${agentKey} agent not available — add via + Agent`);
+        // Run one baton leg: find the agent assigned to roleKey, walk them to
+        // that role's office, wait for the backend to finish real work, then exit.
+        async function runAgentBaton(roleKey) {
+            const agentId = findAgentForRole(roleKey);
+            if (!agentId) {
+                // No agent covers this role — backend still runs it, just no animation
+                console.info(`[baton] No agent for role "${roleKey}" — skipping animation`);
+                await waitForPhaseCompletion(roleKey).catch(() => {});
+                return;
             }
-            await enterOffice(agentKey);
+            await enterOffice(agentId, roleKey);
             try {
-                await waitForPhaseCompletion(agentKey);   // backend does real work
+                await waitForPhaseCompletion(roleKey);   // backend does real work
             } catch (e) {
-                console.warn('Phase failed for', agentKey, e);
+                console.warn('[baton] Phase failed for', roleKey, e);
             }
-            await exitOffice(agentKey);
+            await exitOffice(agentId, roleKey);
         }
 
         async function startCycle() {
@@ -5682,17 +5753,40 @@
                 return;
             }
 
-            // Core agents must be added before a cycle can run
-            const missing = ['trend', 'analyse', 'trader'].filter(k => !agents[k] || !agents[k].element);
+            // The 3 core roles must be covered — either by a core agent slot
+            // or by any custom agent that has the matching task assigned.
+            const ROLE_LABELS = { trend: 'Trend-Master', analyse: 'Analyse-Master', trader: 'Trader-Master' };
+            const missing = ['trend', 'analyse', 'trader'].filter(k => !findAgentForRole(k));
             if (missing.length) {
-                const labels = missing.map(k => CORE_DEFAULTS[k].name).join(', ');
-                showNotification(`❌ Add these agents first: ${labels}`, 'error');
-                setStatus(`✗ Missing agents: <b>${labels}</b>. Click <b>+ Agent</b> to add them.`, true);
+                const labels = missing.map(k => ROLE_LABELS[k]).join(', ');
+                showNotification(`❌ No agent assigned for: ${labels}`, 'error');
+                setStatus(`✗ Assign tasks for: <b>${labels}</b>. Add agents and use <b>Assign Task</b>.`, true);
                 return;
             }
 
+            // Prevent double-clicking while a cycle is already running
+            if (document.querySelector('.btn-start')?.dataset.busy === '1') return;
+            document.querySelector('.btn-start').dataset.busy = '1';
+            document.querySelector('.btn-start').textContent = 'RUNNING…';
+
+            // Reset any agents stuck from a previous broken cycle
+            Object.keys(agents).forEach(k => {
+                const a = agents[k];
+                if (!a?.element) return;
+                if (a.runningCycle) {
+                    a.runningCycle = false;
+                    a.status = 'idle';
+                    a.element.classList.remove('desk-sit', 'working');
+                }
+            });
+
+            // Clear stale event state from any previous cycle
+            pendingPhaseEvents = {};
+            phaseWaiters = {};
+            cycleResolver = null;
+
             ensureEventStream();
-            setStatus(`Connecting to backend for <b>${pair}</b>...`);
+            setStatus(`🔄 Starting cycle for <b>${pair}</b>…`);
 
             // Tell backend to start a real cycle
             let resp;
@@ -5704,56 +5798,125 @@
                 });
             } catch (e) {
                 setStatus('✗ Service temporarily unavailable. Please try again shortly.', true);
+                document.querySelector('.btn-start').dataset.busy = '0';
+                document.querySelector('.btn-start').textContent = 'START CYCLE';
                 return;
             }
 
             if (!resp.ok) {
                 const err = await resp.text();
                 setStatus(`✗ Backend rejected: ${err}`, true);
+                document.querySelector('.btn-start').dataset.busy = '0';
+                document.querySelector('.btn-start').textContent = 'START CYCLE';
                 return;
             }
 
-            // Prepare cycle-completion promise so we can sequence cleanly
+            // Prepare cycle-completion promise
             const cyclePromise = new Promise(r => { cycleResolver = r; });
 
-            // Auto-assign canonical tasks to all 7 agents
+            // Auto-assign canonical tasks to core agent slots (only if the slot
+            // exists AND the agent hasn't already been given a custom task).
             const AUTO_TASKS = {
-                data:     'monitor-risk',
-                portfolio:'monitor-risk',
-                news:     'analyze-trend',
-                risk:     'monitor-risk',
-                trend:    'analyze-trend',
-                analyse:  'detect-patterns',
-                trader:   'execute-trade',
+                data:      'collect-data',
+                portfolio: 'manage-portfolio',
+                news:      'check-news',
+                risk:      'assess-risk',
+                trend:     'analyze-trend',
+                analyse:   'detect-patterns',
+                trader:    'execute-trade',
             };
-            Object.keys(AUTO_TASKS).forEach(k => {
-                if (agents[k]) agents[k].assignedTask = AUTO_TASKS[k];
+            Object.entries(AUTO_TASKS).forEach(([role, taskId]) => {
+                if (agents[role] && !agents[role].assignedTask) {
+                    agents[role].assignedTask = taskId;
+                }
             });
             updateAssignedTasksList();
 
-            // Mirror backend 7-agent pipeline on screen:
-            //   Pre-cycle:  data(Market-Regime) → portfolio(Backtester) → news(News-Sentinel)
-            //   Core ICT:   trend → analyse → risk(Risk-Sentinel) → trader
+            // Mirror backend 7-agent pipeline on screen sequentially.
+            // The backend emits phase_completed FAST — events are buffered in
+            // pendingPhaseEvents so agents always resolve immediately even if
+            // the animation hasn't started watching yet.
             const BATON = [
-                'data', 'portfolio', 'news',    // pre-cycle intelligence
-                'trend', 'analyse', 'risk',     // ICT analysis + risk gate
-                'trader',                        // execution
+                'data', 'portfolio', 'news',   // pre-cycle intelligence
+                'trend', 'analyse', 'risk',    // ICT analysis + risk gate
+                'trader',                       // execution
             ];
-            const PAUSE = 400; // ms between hand-offs
             try {
                 for (const key of BATON) {
                     if (agents[key]?.element) {
                         await runAgentBaton(key);
-                        await new Promise(r => setTimeout(r, PAUSE));
+                        await new Promise(r => setTimeout(r, 300));
                     }
                 }
             } catch (e) {
-                console.warn('Cycle interrupted:', e);
+                console.warn('Baton interrupted:', e);
             }
 
-            await cyclePromise;
-            showNotification('✅ Trading cycle complete');
+            const result = await cyclePromise;
+            showNotification(
+                result?.executed       ? '✅ Trade executed!'
+                : result?.result === 'no_provider' ? '⚙ No provider — add credentials in ⚙ Settings'
+                : '✅ Cycle complete — no trade this round'
+            );
+
+            document.querySelector('.btn-start').dataset.busy = '0';
+            document.querySelector('.btn-start').textContent = 'START CYCLE';
+
+            // Auto-cycle: schedule next run if enabled
+            const autoEl = document.getElementById('auto-cycle-toggle');
+            if (autoEl?.checked && autoCycleRunning) {
+                const mins = parseInt(document.getElementById('auto-cycle-interval')?.value || '15', 10);
+                const ms   = Math.max(1, mins) * 60 * 1000;
+                appendStatus(`⏱ Next cycle in <b>${mins} min</b>…`);
+                autoCycleTimer = setTimeout(() => {
+                    if (autoCycleRunning) startCycle();
+                }, ms);
+            }
         }
+
+        function toggleAutoCycle() {
+            const toggle = document.getElementById('auto-cycle-toggle');
+            autoCycleRunning = toggle?.checked || false;
+            if (!autoCycleRunning && autoCycleTimer) {
+                clearTimeout(autoCycleTimer);
+                autoCycleTimer = null;
+                appendStatus('⏹ Auto-cycle stopped.');
+            } else if (autoCycleRunning) {
+                appendStatus('🔁 Auto-cycle enabled — will repeat after each completed cycle.');
+            }
+
+        // ── ICT Kill Zone scheduler ───────────────────────────────────────────
+        // London Open: 08:00–11:00 UTC  |  New York Open: 13:00–16:00 UTC
+        // When the clock enters a kill zone the system fires one cycle automatically.
+        // The user can still trigger manual cycles at any time.
+        }
+        const KILL_ZONES = [
+            { name: 'London Open',   startH: 8,  endH: 11 },
+            { name: 'New York Open', startH: 13, endH: 16 },
+        ];
+        let _kzActive = false;   // true while currently inside a kill zone window
+
+        function _checkKillZone() {
+            const h = new Date().getUTCHours();
+            const inZone = KILL_ZONES.some(kz => h >= kz.startH && h < kz.endH);
+            const kz     = KILL_ZONES.find(kz => h >= kz.startH && h < kz.endH);
+
+            if (inZone && !_kzActive) {
+                _kzActive = true;
+                appendStatus(`⚡ <b>${kz.name} Kill Zone</b> active (${String(kz.startH).padStart(2,'0')}:00–${String(kz.endH).padStart(2,'0')}:00 UTC) — deploying agents…`);
+                // Trigger a cycle only if one isn't already running
+                if (document.querySelector('.btn-start')?.dataset.busy !== '1') {
+                    startCycle();
+                }
+            } else if (!inZone && _kzActive) {
+                _kzActive = false;
+                appendStatus('🏁 Kill zone closed — agents returning to standby.');
+            }
+        }
+
+        // Check once immediately, then every 60 s
+        setTimeout(_checkKillZone, 3000);
+        setInterval(_checkKillZone, 60000);
 
         function updateMetrics() {
             document.getElementById('cycles').textContent = cycleCount;
@@ -5857,7 +6020,18 @@
             if (type === 'seats') loadSeatsUI();
             if (type === 'tasks') loadTaskStatus();
             if (type === 'assign') loadAgentSelectList();
-            if (type === 'credentials') { renderCredentialsFields(); checkBackendBanner(); }
+            if (type === 'credentials') {
+                // Pre-select the currently active AI provider in the dropdown
+                apiFetch('/api/credentials/status').then(r => r.json()).then(d => {
+                    const sel = document.getElementById('credProvider');
+                    if (sel && d.ai_provider) {
+                        const known = ['openrouter', 'ollama', 'claude'];
+                        if (known.includes(d.ai_provider)) sel.value = d.ai_provider;
+                    }
+                    renderCredentialsFields();
+                }).catch(() => renderCredentialsFields());
+                checkBackendBanner();
+            }
             if (type === 'risk') syncRiskModal();
         }
 
@@ -5878,6 +6052,62 @@
         }
 
         // ── Credentials modal (Settings) ─────────────────────────────────────
+        const OPENROUTER_FREE_MODELS = [
+            {id:'deepseek/deepseek-v4-flash:free',           name:'DeepSeek V4 Flash'},
+            {id:'deepseek/deepseek-r1:free',                 name:'DeepSeek R1'},
+            {id:'deepseek/deepseek-chat-v3-0324:free',       name:'DeepSeek Chat V3'},
+            {id:'meta-llama/llama-3.3-70b-instruct:free',    name:'Llama 3.3 70B'},
+            {id:'meta-llama/llama-3.1-8b-instruct:free',     name:'Llama 3.1 8B'},
+            {id:'qwen/qwen3-32b:free',                       name:'Qwen3 32B'},
+            {id:'qwen/qwen3-14b:free',                       name:'Qwen3 14B'},
+            {id:'qwen/qwen3-8b:free',                        name:'Qwen3 8B'},
+            {id:'qwen/qwen3-30b-a3b:free',                   name:'Qwen3 30B A3B (MoE)'},
+            {id:'qwen/qwen-2.5-72b-instruct:free',           name:'Qwen 2.5 72B'},
+            {id:'google/gemma-3-27b-it:free',                name:'Gemma 3 27B'},
+            {id:'google/gemma-3-12b-it:free',                name:'Gemma 3 12B'},
+            {id:'google/gemma-3n-e4b-it:free',               name:'Gemma 3n E4B'},
+            {id:'mistralai/mistral-7b-instruct:free',        name:'Mistral 7B'},
+            {id:'mistralai/mistral-nemo:free',               name:'Mistral Nemo 12B'},
+            {id:'microsoft/phi-3-mini-128k-instruct:free',   name:'Phi-3 Mini 128K'},
+            {id:'microsoft/phi-3-medium-128k-instruct:free', name:'Phi-3 Medium 128K'},
+            {id:'nousresearch/hermes-3-llama-3.1-405b:free', name:'Hermes 3 Llama 405B'},
+            {id:'openchat/openchat-7b:free',                 name:'OpenChat 7B'},
+            {id:'liquid/lfm-40b:free',                       name:'Liquid LFM 40B'},
+        ];
+
+        const OLLAMA_SUGGESTED_MODELS = [
+            {id:'llama3.2',         name:'Llama 3.2 (3B) — recommended'},
+            {id:'llama3.2:1b',      name:'Llama 3.2 (1B) — fastest'},
+            {id:'llama3.1',         name:'Llama 3.1 (8B)'},
+            {id:'llama3.1:70b',     name:'Llama 3.1 (70B)'},
+            {id:'mistral',          name:'Mistral (7B)'},
+            {id:'mistral-nemo',     name:'Mistral Nemo (12B)'},
+            {id:'phi4',             name:'Phi-4 (14B)'},
+            {id:'phi3',             name:'Phi-3 Mini (3.8B)'},
+            {id:'phi3:medium',      name:'Phi-3 Medium (14B)'},
+            {id:'gemma3',           name:'Gemma 3 (4B)'},
+            {id:'gemma3:12b',       name:'Gemma 3 (12B)'},
+            {id:'gemma3:27b',       name:'Gemma 3 (27B)'},
+            {id:'gemma2',           name:'Gemma 2 (9B)'},
+            {id:'qwen2.5',          name:'Qwen 2.5 (7B)'},
+            {id:'qwen2.5:14b',      name:'Qwen 2.5 (14B)'},
+            {id:'qwen2.5:72b',      name:'Qwen 2.5 (72B)'},
+            {id:'deepseek-r1',      name:'DeepSeek R1 (8B)'},
+            {id:'deepseek-r1:14b',  name:'DeepSeek R1 (14B)'},
+            {id:'deepseek-r1:32b',  name:'DeepSeek R1 (32B)'},
+            {id:'codellama',        name:'Code Llama (7B)'},
+            {id:'tinyllama',        name:'TinyLlama (1.1B) — very fast'},
+            {id:'orca-mini',        name:'Orca Mini (3B)'},
+            {id:'vicuna',           name:'Vicuna (7B)'},
+        ];
+
+        function _buildModelSelect(id, models, currentVal) {
+            const opts = models.map(m =>
+                `<option value="${m.id}"${m.id === currentVal ? ' selected' : ''}>${m.name}</option>`
+            ).join('');
+            return `<select class="form-input" id="${id}">${opts}</select>`;
+        }
+
         function renderCredentialsFields() {
             const provider = document.getElementById('credProvider').value;
             const wrap = document.getElementById('credentialsFields');
@@ -5887,39 +6117,164 @@
                     <input type="${type}" class="form-input" id="${id}" placeholder="${ph}">
                 </div>`;
             const testBtn = document.getElementById('telegramTestBtn');
-            if (provider === 'claude') {
-                wrap.innerHTML = `
-                    <div class="form-group">
-                        <label class="form-label">Anthropic API Key</label>
-                        <input type="password" class="form-input" id="cred_claude_key" placeholder="sk-ant-api03-…" autocomplete="off">
-                    </div>
-                    <div style="font-size:11px;color:#b0e0e6;margin-top:-4px;">
-                        Get your key at <b>console.anthropic.com/settings/keys</b>.<br>
-                        The key is stored in your local <b>.env</b> file and never leaves the server.
-                    </div>`;
+
+            if (provider === 'openrouter') {
                 testBtn.style.display = 'none';
-                // Pre-populate indicator if key is already configured
                 apiFetch('/api/credentials/status').then(r => r.json()).then(d => {
-                    if (d.claude_configured) {
-                        const inp = document.getElementById('cred_claude_key');
-                        if (inp) inp.placeholder = '••••••••••••••••  (already configured — paste to replace)';
-                    }
-                }).catch(() => {});
+                    const configured = d.openrouter_configured;
+                    const currentModel = (d.ai_provider === 'openrouter' && d.current_model) || 'deepseek/deepseek-v4-flash:free';
+                    wrap.innerHTML = `
+                        <div class="form-group">
+                            <label class="form-label">OpenRouter API Key</label>
+                            <input type="password" class="form-input" id="cred_or_key"
+                                placeholder="${configured ? '••••••••  (saved — paste to replace)' : 'sk-or-v1-…'}"
+                                autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Free Model</label>
+                            ${_buildModelSelect('cred_or_model', OPENROUTER_FREE_MODELS, currentModel)}
+                        </div>
+                        <div style="font-size:11px;color:#b0e0e6;margin-top:-4px;">
+                            Get your free key at <b>openrouter.ai/keys</b> (sk-or-v1-…)<br>
+                            All models above are <b>100% free</b> — no credits needed.<br>
+                            Saved to your local <b>.env.local</b> — never leaves this machine.
+                        </div>`;
+                }).catch(() => {
+                    const currentModel = 'deepseek/deepseek-v4-flash:free';
+                    wrap.innerHTML = `
+                        <div class="form-group">
+                            <label class="form-label">OpenRouter API Key</label>
+                            <input type="password" class="form-input" id="cred_or_key" placeholder="sk-or-v1-…" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Free Model</label>
+                            ${_buildModelSelect('cred_or_model', OPENROUTER_FREE_MODELS, currentModel)}
+                        </div>`;
+                });
+
+            } else if (provider === 'ollama') {
+                testBtn.style.display = 'none';
+                apiFetch('/api/credentials/status').then(r => r.json()).then(d => {
+                    const baseUrl    = d.ollama_base_url || 'http://localhost:11434';
+                    const currentMod = (d.ai_provider === 'ollama' && d.current_model) || 'llama3.2';
+                    wrap.innerHTML = `
+                        <div class="form-group">
+                            <label class="form-label">Ollama Base URL</label>
+                            <input type="text" class="form-input" id="cred_ollama_url"
+                                value="${baseUrl}" placeholder="http://localhost:11434">
+                        </div>
+                        <div class="form-group" style="position:relative;">
+                            <label class="form-label">
+                                Model
+                                <button onclick="refreshOllamaModels()" style="margin-left:8px;font-size:10px;padding:2px 8px;background:#1a3a5a;border:1px solid #4A7FA5;color:#b0e0e6;border-radius:3px;cursor:pointer;">⟳ Refresh</button>
+                            </label>
+                            <div id="ollama_model_wrap">${_buildModelSelect('cred_ollama_model', OLLAMA_SUGGESTED_MODELS, currentMod)}</div>
+                            <div id="ollama_conn_badge" style="font-size:10px;margin-top:3px;color:#888;"></div>
+                        </div>
+                        <div style="font-size:11px;color:#b0e0e6;margin-top:-4px;">
+                            Install from <b>ollama.com</b> — completely free &amp; runs locally.<br>
+                            Pull a model first: <code style="color:#F0B428;">ollama pull llama3.2</code><br>
+                            Click <b>⟳ Refresh</b> to load models already installed on your machine.
+                        </div>`;
+                    refreshOllamaModels(currentMod);
+                }).catch(() => {
+                    wrap.innerHTML = `
+                        <div class="form-group">
+                            <label class="form-label">Ollama Base URL</label>
+                            <input type="text" class="form-input" id="cred_ollama_url" value="http://localhost:11434">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Model
+                                <button onclick="refreshOllamaModels()" style="margin-left:8px;font-size:10px;padding:2px 8px;background:#1a3a5a;border:1px solid #4A7FA5;color:#b0e0e6;border-radius:3px;cursor:pointer;">⟳ Refresh</button>
+                            </label>
+                            <div id="ollama_model_wrap">${_buildModelSelect('cred_ollama_model', OLLAMA_SUGGESTED_MODELS, 'llama3.2')}</div>
+                            <div id="ollama_conn_badge" style="font-size:10px;margin-top:3px;color:#888;"></div>
+                        </div>`;
+                });
+
+            } else if (provider === 'claude') {
+                testBtn.style.display = 'none';
+                const claudeModels = [
+                    {id:'claude-opus-4-7-20251101',       name:'Claude Opus 4.7 (latest)'},
+                    {id:'claude-sonnet-4-6',              name:'Claude Sonnet 4.6'},
+                    {id:'claude-haiku-4-5-20251001',      name:'Claude Haiku 4.5'},
+                    {id:'claude-3-5-sonnet-20241022',     name:'Claude 3.5 Sonnet'},
+                    {id:'claude-3-5-haiku-20241022',      name:'Claude 3.5 Haiku'},
+                    {id:'claude-3-opus-20240229',         name:'Claude 3 Opus'},
+                ];
+                apiFetch('/api/credentials/status').then(r => r.json()).then(d => {
+                    const configured = d.claude_configured;
+                    const currentModel = (d.ai_provider === 'claude' && d.current_model) || 'claude-3-5-sonnet-20241022';
+                    wrap.innerHTML = `
+                        <div class="form-group">
+                            <label class="form-label">Anthropic API Key</label>
+                            <input type="password" class="form-input" id="cred_claude_key"
+                                placeholder="${configured ? '••••••••  (saved — paste to replace)' : 'sk-ant-…'}"
+                                autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Model</label>
+                            ${_buildModelSelect('cred_claude_model', claudeModels, currentModel)}
+                        </div>
+                        <div style="font-size:11px;color:#b0e0e6;margin-top:-4px;">
+                            Get your key at <b>console.anthropic.com/settings/keys</b> (sk-ant-…)<br>
+                            Note: Claude API requires a paid account. Saved to <b>.env.local</b>.
+                        </div>`;
+                }).catch(() => {
+                    wrap.innerHTML = `
+                        <div class="form-group">
+                            <label class="form-label">Anthropic API Key</label>
+                            <input type="password" class="form-input" id="cred_claude_key" placeholder="sk-ant-…" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Model</label>
+                            ${_buildModelSelect('cred_claude_model', claudeModels, 'claude-3-5-sonnet-20241022')}
+                        </div>`;
+                });
+
             } else if (provider === 'mt5') {
                 wrap.innerHTML = fld('Account Number', 'cred_mt5_account', 'text', '12345678')
                                + fld('Password',       'cred_mt5_password', 'password', '••••••••')
                                + fld('Server',         'cred_mt5_server', 'text', 'BrokerName-Server');
                 testBtn.style.display = 'none';
+                apiFetch('/api/credentials/status').then(r => r.json()).then(d => {
+                    if (d.mt5_configured) {
+                        const acct = document.getElementById('cred_mt5_account');
+                        const srv  = document.getElementById('cred_mt5_server');
+                        const pwd  = document.getElementById('cred_mt5_password');
+                        if (acct && d.mt5_account) acct.value = d.mt5_account;
+                        if (srv  && d.mt5_server)  srv.value  = d.mt5_server;
+                        if (pwd) pwd.placeholder = '••••••••  (saved — paste to change)';
+                    }
+                }).catch(() => {});
             } else if (provider === 'mt4') {
                 wrap.innerHTML = fld('Account Number', 'cred_mt4_account', 'text', '12345678')
                                + fld('Password',       'cred_mt4_password', 'password', '••••••••')
                                + fld('Server',         'cred_mt4_server', 'text', 'BrokerName-Server');
                 testBtn.style.display = 'none';
+                apiFetch('/api/credentials/status').then(r => r.json()).then(d => {
+                    if (d.mt4_configured) {
+                        const acct = document.getElementById('cred_mt4_account');
+                        const srv  = document.getElementById('cred_mt4_server');
+                        const pwd  = document.getElementById('cred_mt4_password');
+                        if (acct && d.mt4_account) acct.value = d.mt4_account;
+                        if (srv  && d.mt4_server)  srv.value  = d.mt4_server;
+                        if (pwd) pwd.placeholder = '••••••••  (saved — paste to change)';
+                    }
+                }).catch(() => {});
             } else if (provider === 'tradingview') {
                 wrap.innerHTML = fld('Username',        'cred_tv_username', 'text', 'your_tv_user')
                                + fld('Password',        'cred_tv_password', 'password', '••••••••')
                                + fld('Session Token (optional)', 'cred_tv_token', 'text', 'sessionid=...');
                 testBtn.style.display = 'none';
+                apiFetch('/api/credentials/status').then(r => r.json()).then(d => {
+                    if (d.tradingview_configured) {
+                        const usr = document.getElementById('cred_tv_username');
+                        const pwd = document.getElementById('cred_tv_password');
+                        if (usr && d.tradingview_username) usr.value = d.tradingview_username;
+                        if (pwd) pwd.placeholder = '••••••••  (saved — paste to change)';
+                    }
+                }).catch(() => {});
             } else if (provider === 'telegram') {
                 wrap.innerHTML = fld('Bot Token', 'cred_tg_bot_token', 'password', '123456:ABC-...')
                                + fld('Chat ID',   'cred_tg_chat_id',   'text',     '-1001234567890')
@@ -5927,6 +6282,41 @@
                                +   'Create a bot via <b>@BotFather</b>, then add it to your channel/group '
                                +   'and paste its token + the chat ID below.</div>';
                 testBtn.style.display = 'inline-block';
+                apiFetch('/api/credentials/status').then(r => r.json()).then(d => {
+                    if (d.telegram_configured) {
+                        const chatId  = document.getElementById('cred_tg_chat_id');
+                        const botTok  = document.getElementById('cred_tg_bot_token');
+                        if (chatId && d.telegram_chat_id) chatId.value = d.telegram_chat_id;
+                        if (botTok) botTok.placeholder = '••••••••  (saved — paste to change)';
+                    }
+                }).catch(() => {});
+            }
+        }
+
+        async function refreshOllamaModels(preserveModel) {
+            const badge = document.getElementById('ollama_conn_badge');
+            const wrap  = document.getElementById('ollama_model_wrap');
+            if (!wrap) return;
+            if (badge) { badge.style.color = '#888'; badge.textContent = 'Fetching models…'; }
+            try {
+                const r    = await apiFetch('/api/ollama-models');
+                const data = await r.json();
+                const models  = data.models || OLLAMA_SUGGESTED_MODELS;
+                const current = preserveModel
+                    || (document.getElementById('cred_ollama_model') || {}).value
+                    || 'llama3.2';
+                wrap.innerHTML = _buildModelSelect('cred_ollama_model', models, current);
+                if (badge) {
+                    if (data.connected) {
+                        badge.style.color = '#4CAF50';
+                        badge.textContent = `✓ Ollama connected — ${models.length} model(s) installed`;
+                    } else {
+                        badge.style.color = '#FF9800';
+                        badge.textContent = '⚠ Ollama not running — showing suggested models (ollama.com)';
+                    }
+                }
+            } catch {
+                if (badge) { badge.style.color = '#f44336'; badge.textContent = '✗ Could not reach backend'; }
             }
         }
 
@@ -5973,23 +6363,43 @@
             const result = document.getElementById('credentialsResult');
             const body = { provider };
 
-            if (provider === 'claude') {
+            if (provider === 'openrouter') {
+                body.api_key = document.getElementById('cred_or_key').value.trim();
+                body.model   = document.getElementById('cred_or_model').value;
+
+                // No key entered → fall back to Ollama (no key needed, fully free & local)
+                if (!body.api_key) {
+                    result.style.color = '#FF9800';
+                    result.textContent = '⚡ No key entered — switching to Ollama (free, local). Pick a model and save.';
+                    document.getElementById('credProvider').value = 'ollama';
+                    renderCredentialsFields();
+                    return;
+                }
+            } else if (provider === 'ollama') {
+                body.base_url = document.getElementById('cred_ollama_url').value.trim();
+                body.model    = document.getElementById('cred_ollama_model').value;
+            } else if (provider === 'claude') {
                 body.api_key = document.getElementById('cred_claude_key').value.trim();
+                body.model   = (document.getElementById('cred_claude_model') || {}).value || 'claude-3-5-sonnet-20241022';
             } else if (provider === 'mt5') {
                 body.account  = document.getElementById('cred_mt5_account').value.trim();
-                body.password = document.getElementById('cred_mt5_password').value;
                 body.server   = document.getElementById('cred_mt5_server').value.trim();
+                const mt5pwd  = document.getElementById('cred_mt5_password').value;
+                if (mt5pwd) body.password = mt5pwd;   // omit if blank → backend keeps existing
             } else if (provider === 'mt4') {
                 body.account  = document.getElementById('cred_mt4_account').value.trim();
-                body.password = document.getElementById('cred_mt4_password').value;
                 body.server   = document.getElementById('cred_mt4_server').value.trim();
+                const mt4pwd  = document.getElementById('cred_mt4_password').value;
+                if (mt4pwd) body.password = mt4pwd;
             } else if (provider === 'tradingview') {
                 body.username      = document.getElementById('cred_tv_username').value.trim();
-                body.password      = document.getElementById('cred_tv_password').value;
                 body.session_token = document.getElementById('cred_tv_token').value.trim();
+                const tvpwd        = document.getElementById('cred_tv_password').value;
+                if (tvpwd) body.password = tvpwd;
             } else if (provider === 'telegram') {
-                body.bot_token = document.getElementById('cred_tg_bot_token').value.trim();
                 body.chat_id   = document.getElementById('cred_tg_chat_id').value.trim();
+                const tgTok    = document.getElementById('cred_tg_bot_token').value.trim();
+                if (tgTok) body.bot_token = tgTok;   // keep existing token if blank
             }
 
             result.style.color = '#FFD700';
@@ -6007,22 +6417,30 @@
                     result.textContent = `✗ ${data.detail || 'Save failed'}`;
                     return;
                 }
-                if (provider === 'claude') {
+                if (provider === 'openrouter') {
                     result.style.color = '#4CAF50';
-                    result.textContent = '✓ Claude API key saved — agents will use it on the next cycle';
-                } else if (provider === 'mt5') {
-                    result.style.color = data.reconnected ? '#4CAF50' : '#FF9800';
-                    result.textContent = data.reconnected
-                        ? '✓ Saved & MT5 reconnected'
-                        : '⚠ Saved but MT5 reconnect failed — check server/credentials';
+                    result.textContent = `✓ OpenRouter key saved — model: ${body.model}`;
+                } else if (provider === 'ollama') {
+                    result.style.color = '#4CAF50';
+                    result.textContent = `✓ Ollama saved — ${body.base_url} · model: ${body.model}`;
+                } else if (provider === 'claude') {
+                    result.style.color = '#4CAF50';
+                    result.textContent = `✓ Claude API key saved — model: ${body.model}`;
+                } else if (provider === 'mt5' || provider === 'mt4') {
+                    result.style.color = '#4CAF50';
+                    result.textContent = `✓ ${provider.toUpperCase()} credentials saved — connecting in background… watch the status panel`;
+                } else if (provider === 'tradingview') {
+                    result.style.color = '#4CAF50';
+                    result.textContent = '✓ TradingView credentials saved — connecting in background…';
                 } else if (provider === 'telegram') {
                     result.style.color = '#4CAF50';
-                    result.textContent = '✓ Telegram connected — signals will be broadcast on each cycle';
+                    result.textContent = '✓ Telegram saved — signals will be broadcast on each trade';
                 } else {
                     result.style.color = '#4CAF50';
                     result.textContent = '✓ Saved';
                 }
-                showNotification(`✓ ${provider.toUpperCase()} credentials saved`);
+                const providerLabel = {openrouter:'OpenRouter', ollama:'Ollama', claude:'Claude'}[provider] || provider.toUpperCase();
+                showNotification(`✓ ${providerLabel} credentials saved`);
             } catch (e) {
                 result.style.color = '#f44336';
                 result.textContent = API_TOKEN
@@ -6132,7 +6550,7 @@
                 <div style="background: #1a1a2e; padding: 10px; border-left: 3px solid #4CAF50; border-radius: 3px; display: flex; justify-content: space-between; align-items: center;">
                     <div style="font-size: 12px;">
                         <strong>${agent.name}</strong><br>
-                        <span style="color: #b0e0e6;">${TASK_TYPES[agent.assignedTask]}</span>
+                        <span style="color: #b0e0e6;">${TASK_TYPES[agent.assignedTask] || agent.assignedTask || '—'}</span>
                     </div>
                     <button class="agent-item-btn" onclick="clearTask('${type}')" style="background: #f44336;">Remove</button>
                 </div>

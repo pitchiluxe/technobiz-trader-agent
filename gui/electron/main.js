@@ -26,7 +26,7 @@ const { spawn, execFileSync } = require('child_process');
 const BACKEND_PORT  = 8765;
 const BACKEND_URL   = `http://127.0.0.1:${BACKEND_PORT}`;
 const POLL_INTERVAL = 500;   // ms between readiness checks
-const POLL_TIMEOUT  = 90000; // give Python 90 s to start (longer for slow machines)
+const POLL_TIMEOUT  = 180000; // give Python 180 s to start (provider connections are async but allow extra margin)
 const IS_DEV        = !app.isPackaged;
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -35,6 +35,7 @@ let splashWindow  = null;
 let pythonProcess = null;
 let pollTimer     = null;
 let pollDeadline  = null;
+let isQuitting    = false; // set before killBackend so exit handler stays silent
 
 // ── Python discovery ─────────────────────────────────────────────────────────
 function findPython () {
@@ -241,6 +242,10 @@ function createSplash () {
 
 // ── Main window ───────────────────────────────────────────────────────────────
 function createMain () {
+  // Guard against being called twice (stale backend already running = poll fires
+  // instantly on the first interval before clearInterval can cancel the rest).
+  if (mainWindow && !mainWindow.isDestroyed()) return;
+
   mainWindow = new BrowserWindow({
     width: 1440, height: 900,
     minWidth: 1100, minHeight: 700,
@@ -279,7 +284,8 @@ function createMain () {
         { role: 'zoomOut' },
         { type: 'separator' },
         { role: 'togglefullscreen' },
-        ...(IS_DEV ? [{ type: 'separator' }, { role: 'toggleDevTools' }] : []),
+        { type: 'separator' },
+        { role: 'toggleDevTools' },
       ],
     },
     {
@@ -326,6 +332,17 @@ function createMain () {
     if (IS_DEV) mainWindow.webContents.openDevTools({ mode: 'detach' });
   });
 
+  // Forward renderer console warnings/errors to backend.log so we can diagnose
+  // UI issues without needing DevTools open.
+  const rendererLogFile = path.join(app.getPath('userData'), 'backend.log');
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    if (level >= 2) { // 2=warning, 3=error
+      const tag = level === 3 ? 'RENDERER-ERROR' : 'RENDERER-WARN';
+      const src = sourceId ? ` @ ${path.basename(sourceId)}:${line}` : '';
+      try { fs.appendFileSync(rendererLogFile, `[${tag}] ${message}${src}\n`); } catch (_) {}
+    }
+  });
+
   mainWindow.on('closed', () => { mainWindow = null; });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -336,6 +353,8 @@ function createMain () {
 
 // ── Backend readiness polling ─────────────────────────────────────────────────
 function pollBackend () {
+  if (!pollTimer) return; // already satisfied by a previous callback — bail out
+
   if (Date.now() > pollDeadline) {
     clearInterval(pollTimer);
     const logPath = path.join(app.getPath('userData'), 'backend.log');
@@ -351,7 +370,9 @@ function pollBackend () {
 
   const req = http.get(`${BACKEND_URL}/api/status`, { timeout: 2000 }, (res) => {
     if (res.statusCode === 200 || res.statusCode === 401) {
+      // Clear timer FIRST so no further callbacks fire, then open the window.
       clearInterval(pollTimer);
+      pollTimer = null;
       createMain();
     }
   });
@@ -360,7 +381,7 @@ function pollBackend () {
 }
 
 // ── Python process spawner ────────────────────────────────────────────────────
-function startBackend (python) {
+async function startBackend (python) {
   const bDir   = backendDir();
   const script = path.join(bDir, 'gui_server.py');
 
@@ -373,6 +394,44 @@ function startBackend (python) {
     return;
   }
 
+  // Kill any stale process holding BACKEND_PORT so the new one can bind cleanly.
+  // This handles cases where a previous uvicorn reloader left an orphan worker,
+  // or an old TechnobizTrader install is still running.
+  if (process.platform === 'win32') {
+    try {
+      const raw = execFileSync(
+        'netstat', ['-ano'],
+        { timeout: 5000, stdio: 'pipe' }
+      ).toString();
+      const portRe = new RegExp(`:${BACKEND_PORT}\\s+\\S+\\s+LISTENING\\s+(\\d+)`, 'g');
+      let killed = false;
+      let m;
+      while ((m = portRe.exec(raw)) !== null) {
+        const pid = m[1];
+        if (pid === '0') continue; // skip system PID
+        try {
+          execFileSync('taskkill', ['/PID', pid, '/T', '/F'], { stdio: 'ignore' });
+          killed = true;
+        } catch { /* already gone */ }
+      }
+      // Poll until port 8765 is actually free (up to 5 s) before binding.
+      // A fixed 800 ms sleep was too short — the OS sometimes takes longer to
+      // release the socket after taskkill, causing EADDRINUSE on the next bind.
+      if (killed) {
+        const deadline = Date.now() + 5000;
+        while (Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 300));
+          try {
+            const check = execFileSync('netstat', ['-ano'],
+              { timeout: 3000, stdio: 'pipe' }).toString();
+            const stillUsed = new RegExp(`:${BACKEND_PORT}\\s+\\S+\\s+LISTENING`).test(check);
+            if (!stillUsed) break;
+          } catch { break; }
+        }
+      }
+    } catch { /* netstat not available */ }
+  }
+
   setSplashStatus('Starting Python backend…');
 
   const env = {
@@ -381,6 +440,10 @@ function startBackend (python) {
     GUI_HOST: '127.0.0.1',
     GUI_PORT: String(BACKEND_PORT),
     PYTHONUNBUFFERED: '1',
+    // Force production mode so uvicorn runs WITHOUT the file-watcher reloader.
+    // The reloader spawns orphan worker processes that hold the port across
+    // restarts, causing the next launch to fail silently.
+    ENVIRONMENT: IS_DEV ? 'development' : 'production',
   };
 
   const logPath = path.join(app.getPath('userData'), 'backend.log');
@@ -404,15 +467,44 @@ function startBackend (python) {
   });
 
   pythonProcess.on('exit', (code, signal) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      const logPath2 = path.join(app.getPath('userData'), 'backend.log');
+    if (isQuitting) return; // normal app shutdown — stay silent
+    pythonProcess = null;
+
+    const logPath2 = path.join(app.getPath('userData'), 'backend.log');
+
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      // Crashed before the main window was shown — stop the startup poll and
+      // surface the error immediately instead of waiting for the 180 s timeout.
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
       dialog.showErrorBox(
-        'Backend Stopped',
-        `The Python backend exited unexpectedly (code ${code}, signal ${signal}).\n\n` +
-        `See ${logPath2} for details.`
+        'Backend Failed to Start',
+        `Python exited during startup (code ${code}, signal ${signal}).\n\n` +
+        `Check the log for details:\n${logPath2}`
       );
       app.quit();
+      return;
     }
+
+    // Backend crashed while the app was running — offer a restart instead of
+    // silently closing the app.
+    dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: 'Backend Stopped',
+      message: 'The Python backend stopped unexpectedly.',
+      detail:
+        `Exit code: ${code}  |  Signal: ${signal}\n\n` +
+        `Log file:\n${logPath2}`,
+      buttons: ['Restart Backend', 'Quit'],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(({ response }) => {
+      if (response === 0) {
+        const python = findPython();
+        startBackend(python);
+      } else {
+        app.quit();
+      }
+    });
   });
 
   pollDeadline = Date.now() + POLL_TIMEOUT;
@@ -422,7 +514,22 @@ function startBackend (python) {
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 nativeTheme.themeSource = 'dark';
 
+// Enforce single instance — if another copy is already running, focus it and quit.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    // A second launch was attempted — bring the existing window to front.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
 app.whenReady().then(async () => {
+  if (!gotLock) return; // quit in progress
   ensureUserEnv();
   createSplash();
 
@@ -456,7 +563,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => killBackend());
+app.on('before-quit', () => { isQuitting = true; killBackend(); });
 
 function killBackend () {
   if (pollTimer) clearInterval(pollTimer);

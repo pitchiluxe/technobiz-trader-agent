@@ -1,7 +1,7 @@
 {
   "name": "technobiztrader",
-  "version": "1.0.0",
-  "description": "TechnobizTrader — 3-Agent ICT Trading System by My Digital Solutions",
+  "version": "2.1.2",
+  "description": "TechnobizTrader — 7-Agent ICT Trading System by My Digital Solutions",
   "author": {
     "name": "My Digital Solutions",
     "email": "erickomari243@gmail.com"
@@ -38,8 +38,11 @@
         "to": "backend",
         "filter": [
           "minecraft_trading_office.html",
+          "trading_command_center.html",
           "gui_server.py",
           "main.py",
+          "risk_settings.json",
+          ".env.template",
           "agents/**",
           "api/**",
           "config/**",
@@ -49,7 +52,9 @@
           "requirements.txt",
           "requirements-app.txt",
           "LICENSE.txt",
-          "docs/USER_MANUAL.md"
+          "!**/__pycache__/**",
+          "!**/*.pyc",
+          "!**/*.pyo"
         ]
       }
     ],
@@ -99,7 +104,7 @@
       "createStartMenuShortcut": true,
       "shortcutName": "TechnobizTrader",
       "license": "../LICENSE.txt",
-      "artifactName": "TechnobizTrader-Setup-${version}.exe"
+      "artifactName": "TechnobizTrader-Setup-v${version}-win64.exe"
     }
   }
 }

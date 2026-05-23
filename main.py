@@ -20,6 +20,7 @@ from typing import List, Optional
 from dotenv import load_dotenv
 
 load_dotenv(override=False)
+load_dotenv(".env.local", override=True)  # local overrides (OpenRouter / Ollama)
 
 from utils.logger import setup_logging
 setup_logging()

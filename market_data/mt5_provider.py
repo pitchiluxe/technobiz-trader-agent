@@ -63,7 +63,13 @@ class MT5Provider(DataProvider):
             raise RuntimeError(
                 "MetaTrader5 package is not installed. Run: pip install MetaTrader5"
             )
-        self.account  = int(account)
+        try:
+            self.account = int(account)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(
+                f"MT5_ACCOUNT must be a numeric account number (got {account!r}). "
+                "Enter your real MT5 account number in the Settings panel."
+            ) from exc
         self.password = password
         self.server   = server
         self._connected = False

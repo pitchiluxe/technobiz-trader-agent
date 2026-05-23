@@ -417,7 +417,7 @@ class AnalyseMaster(BaseAgent):
                 if move >= min_impulse:
                     self.logger.debug("[ANALYSE] Bullish OB [%.5f–%.5f] disp=%s",
                                       curr.low, curr.high, displ)
-                    return True, round(curr.low, 5), round(curr.high, 5), displ
+                    return True, round(curr.low, 5), round(curr.high, 5), displ, curr.timestamp
 
             elif bias == "BEARISH" and curr.close > curr.open:         # bullish OB candle
                 move = sum(c.open - c.close for c in impulse if c.close < c.open)

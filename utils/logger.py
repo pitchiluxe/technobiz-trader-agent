@@ -24,6 +24,8 @@ def setup_logging():
 
     # Create logger
     logger = logging.getLogger()
+    if logger.handlers:
+        return logger  # already configured — don't add duplicate handlers
     logger.setLevel(settings.LOG_LEVEL)
 
     # Console handler

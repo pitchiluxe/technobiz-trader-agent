@@ -186,7 +186,11 @@ async def status():
 async def credentials_status():
     """Reports which credentials are already configured via environment variables."""
     return {
-        "claude_configured":       bool(os.getenv("CLAUDE_API_KEY")),
+        "claude_configured":       bool(
+            os.getenv("ANTHROPIC_AUTH_TOKEN") or
+            os.getenv("ANTHROPIC_API_KEY") or
+            os.getenv("CLAUDE_API_KEY")
+        ),
         "mt5_configured":          bool(os.getenv("MT5_ACCOUNT")),
         "tradingview_configured":  bool(os.getenv("TRADINGVIEW_USERNAME")),
         "telegram_configured":     bool(os.getenv("TELEGRAM_BOT_TOKEN")),
@@ -212,8 +216,10 @@ async def save_credentials(req: CredentialsRequest, _: str = Depends(require_api
     """
     provider = req.provider.lower().strip()
     if provider == "claude":
-        if not req.api_key or not req.api_key.startswith("sk-ant-"):
-            raise HTTPException(400, "A valid Anthropic key starting with 'sk-ant-' is required")
+        if not req.api_key or not (
+            req.api_key.startswith("sk-ant-") or req.api_key.startswith("sk-or-v1-")
+        ):
+            raise HTTPException(400, "A valid API key is required (Anthropic sk-ant-... or OpenRouter sk-or-v1-...)")
         os.environ["CLAUDE_API_KEY"] = req.api_key
     elif provider in ("mt5", "mt4"):
         if not (req.account and req.password and req.server):

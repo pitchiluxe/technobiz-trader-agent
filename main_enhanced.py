@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv(override=False)
+load_dotenv(".env.local", override=True)  # local overrides (OpenRouter / Ollama)
 
 # Setup logging
 from utils.logger import setup_logging
