@@ -38,6 +38,7 @@ from config.constants import (
 )
 from config.kill_switch import KillSwitch
 from config.user_risk_settings import RiskSettingsManager
+from config.news_blackout import is_news_blackout_active, get_active_blackout
 
 if TYPE_CHECKING:
     from market_data.mt5_provider import MT5Provider
@@ -395,6 +396,28 @@ class TraderMaster(BaseAgent):
             self.logger.warning("[TRADER] kill_zone_end missing/malformed — rejecting trade")
             return False
 
+    def _market_open(self, symbol: str) -> bool:
+        """Check if the market for this symbol is currently open.
+
+        Forex pairs close Friday ~22:00 UTC and reopen Sunday ~22:00 UTC.
+        Crypto (BTC, ETH) and synthetic indices are 24/7.  This is a
+        coarse UTC gate — broker-specific DST shifts are handled by MT5.
+        """
+        # Cryptocurrencies and synthetic indices — assume 24/7
+        always_open = ("BTC", "ETH", "XBT", "US30", "NAS", "SPX", "DAX")
+        if any(prefix in symbol.upper() for prefix in always_open):
+            return True
+        # Forex/CFDs: 24h Mon–Thu, 24h Fri until ~22:00 UTC, closed Sat, closed Sun until ~22:00 UTC
+        now_utc = datetime.now(timezone.utc)
+        weekday = now_utc.weekday()  # 0=Mon, 6=Sun
+        if weekday == 5:  # Saturday
+            return False
+        if weekday == 6 and now_utc.hour < 22:  # Sunday before open
+            return False
+        if weekday == 4 and now_utc.hour >= 22:  # Friday after close
+            return False
+        return True
+
     # ------------------------------------------------------------------
     # ATR helper (same formula as Analyse-Master)
     # ------------------------------------------------------------------
@@ -749,6 +772,25 @@ class TraderMaster(BaseAgent):
                 self.logger.warning("[TRADER-MASTER] Kill zone expired — rejected")
                 return None
 
+            # ── Market hours gate ─────────────────────────────────────
+            if not self._market_open(symbol):
+                self.logger.warning(
+                    "[TRADER-MASTER] %s outside active market hours — rejected", symbol,
+                )
+                return None
+
+            # ── News blackout (high-impact economic events) ────────────
+            # Block new executions within ±10 min of FOMC, NFP, CPI, ECB, etc.
+            # to avoid spread spikes, slippage, and unpredictable moves.
+            if is_news_blackout_active(symbol):
+                evt = get_active_blackout(symbol)
+                evt_name = evt.name if evt else "high-impact economic event"
+                self.logger.warning(
+                    "[TRADER-MASTER] News blackout active (%s) — %s rejected",
+                    evt_name, symbol,
+                )
+                return None
+
         # ── Consecutive loss sizing adjustment ─────────────────────────
         # ext_risk_mult from Risk-Sentinel already incorporates consecutive-loss
         # scaling; if not provided fall back to the legacy counter.
@@ -842,6 +884,32 @@ class TraderMaster(BaseAgent):
             if ticket is not None:
                 execution.mt5_ticket = ticket
                 execution.status = "OPEN"
+                # ── Slippage tracking ──────────────────────────────────
+                # After fill, fetch the actual position open price and compute
+                # slippage in pips.  Positive = worse than requested.
+                try:
+                    pos = await self.mt5_provider.get_position_by_ticket(ticket)
+                    if pos:
+                        actual_price = float(pos.get("price_open", entry_price))
+                        spec = get_instrument_spec(symbol)
+                        pip = spec.get("pip_size", 0.0001)
+                        if direction == "BUY":
+                            slippage = (actual_price - entry_price) / pip
+                        else:
+                            slippage = (entry_price - actual_price) / pip
+                        execution.slippage = round(slippage, 2)
+                        if abs(slippage) > 2.0:
+                            self.logger.warning(
+                                "[TRADER-MASTER] High slippage on %s: %.1f pips "
+                                "(requested %.5f, filled %.5f)",
+                                signal_id, slippage, entry_price, actual_price,
+                            )
+                        else:
+                            self.logger.debug(
+                                "[TRADER-MASTER] Slippage: %.1f pips", slippage,
+                            )
+                except Exception as slip_exc:
+                    self.logger.debug("[TRADER-MASTER] slippage check skipped: %s", slip_exc)
                 self.logger.info(
                     "[TRADER-MASTER] Order placed ✓ ticket=%d %s %s %.2f lots @ %.5f",
                     ticket, direction, symbol, lots, entry_price,

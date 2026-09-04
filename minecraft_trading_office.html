@@ -5587,27 +5587,37 @@
                        : (sessionStorage.getItem('gui_session_token') || '');
 
         // Authenticated fetch wrapper — attaches X-GUI-Token to every request.
+        // On 401, clears the cached token and re-shows the login modal so the
+        // user can re-authenticate without manually reloading the page.
         function apiFetch(path, opts = {}) {
             opts.headers = Object.assign({}, opts.headers, { 'X-GUI-Token': API_TOKEN });
-            return fetch(API_BASE + path, opts);
+            return fetch(API_BASE + path, opts).then(resp => {
+                if (resp.status === 401 && API_TOKEN) {
+                    // Token rejected — clear and prompt again
+                    API_TOKEN = '';
+                    sessionStorage.removeItem('gui_session_token');
+                    if (!document.getElementById('authOverlay')) {
+                        showLoginModal();
+                        setStatus('🔐 Session expired — please re-authenticate', true);
+                    }
+                }
+                return resp;
+            });
         }
 
-        // Exchange a long-lived key for a short-lived session token.
-        // Called when the user submits the login modal.
+        // Validate the submitted key against the server-injected token.
+        // Since gui_server.py injects window.__GUI_TOKEN__ at page load, the key
+        // the user types must match that value.  No server round-trip is needed —
+        // the injected token is already the canonical secret.
         async function exchangeForSessionToken(key) {
-            const resp = await fetch(API_BASE + '/api/auth/exchange', {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ key }),
-            });
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({ detail: 'auth failed' }));
-                throw new Error(err.detail || `auth failed (HTTP ${resp.status})`);
+            if (!window.__GUI_TOKEN__) {
+                throw new Error('Server did not inject a token — reload the page');
             }
-            const data = await resp.json();
-            API_TOKEN = data.session_token;
-            sessionStorage.setItem('gui_session_token', API_TOKEN);
-            return data;
+            if (key !== window.__GUI_TOKEN__) {
+                throw new Error('Invalid key');
+            }
+            API_TOKEN = window.__GUI_TOKEN__;
+            return { ok: true };
         }
 
         function showLoginModal() {

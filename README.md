@@ -4,12 +4,15 @@
 
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)]()
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black)](https://technobiz-trader-agent.vercel.app)
+[![Download](https://img.shields.io/badge/Download-Windows-0078D4?logo=windows&logoColor=white)](https://github.com/pitchiluxe/technobiz-trader-agent/releases/latest)
+[![Landing](https://img.shields.io/badge/Landing-Vercel-black)](https://technobiz-trader-agent.vercel.app)
 [![License](https://img.shields.io/badge/License-Proprietary-red)]()
 
 ![TechnobizTrader Agency — Minecraft-style trading office UI](docs/preview.png)
 
-> **Live Demo:** https://technobiz-trader-agent.vercel.app
+> **Landing page & download:** https://technobiz-trader-agent.vercel.app
+
+The Vercel link above now serves a landing page with a one-click Windows installer download. The desktop app (preview below) is built from this repo with PyInstaller and signed for distribution.
 
 ---
 

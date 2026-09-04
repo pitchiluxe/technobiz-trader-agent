@@ -10,6 +10,7 @@ Security hardening vs initial version:
 import logging
 import os
 import secrets
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -40,22 +41,46 @@ _DASHBOARD_API_KEY = os.getenv("DASHBOARD_API_KEY", "")
 _api_key_header    = APIKeyHeader(name="x-api-key",   auto_error=False)
 _gui_token_header  = APIKeyHeader(name="X-GUI-Token", auto_error=False)
 
+# Session tokens issued by /api/auth/exchange. Stored in-memory — when the
+# process restarts, all sessions are invalidated and users re-authenticate.
+# Key: token string, Value: expiry epoch seconds.
+_session_tokens: dict[str, float] = {}
+_SESSION_TTL    = 3600   # 1 hour, must match HTML client
+
+
+def _gc_sessions() -> None:
+    """Drop expired session tokens. Called opportunistically on auth checks."""
+    now = time.time()
+    expired = [t for t, exp in _session_tokens.items() if exp < now]
+    for t in expired:
+        del _session_tokens[t]
+
 
 async def require_api_key(
     api_key:   str = Security(_api_key_header),
     gui_token: str = Security(_gui_token_header),
 ) -> str:
     token = api_key or gui_token or ""
-    # If neither secret is configured, allow all requests (dev / demo mode)
+    # Dev mode — neither secret configured, accept anything
     if not _DASHBOARD_API_KEY and not _GUI_SECRET:
         return "dev-mode"
+    # Long-lived secrets
     if secrets.compare_digest(token, _GUI_SECRET):
         return token
     if _DASHBOARD_API_KEY and secrets.compare_digest(token, _DASHBOARD_API_KEY):
         return token
-    if not _DASHBOARD_API_KEY:
+    # Short-lived session token (issued by /api/auth/exchange)
+    if token in _session_tokens:
+        if _session_tokens[token] > time.time():
+            return token
+        # expired — clean up and fall through to 401
+        del _session_tokens[token]
+    # Lazy GC
+    if len(_session_tokens) > 100:
+        _gc_sessions()
+    if not _DASHBOARD_API_KEY and not _GUI_SECRET:
         return "dev-mode"
-    raise HTTPException(status_code=403, detail="Invalid or missing API key")
+    raise HTTPException(status_code=401, detail="Invalid or expired credentials")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -261,15 +286,17 @@ async def auth_exchange(req: AuthExchangeRequest, response: Response):
     if not valid:
         raise HTTPException(403, "Invalid key")
     session_token = secrets.token_urlsafe(32)
+    # Register the session token so require_api_key accepts it
+    _session_tokens[session_token] = time.time() + _SESSION_TTL
     response.set_cookie(
         key="session_token",
         value=session_token,
-        max_age=3600,
+        max_age=_SESSION_TTL,
         httponly=True,
         samesite="strict",
         secure=_ENVIRONMENT == "production",
     )
-    return {"ok": True, "session_token": session_token, "expires_in": 3600}
+    return {"ok": True, "session_token": session_token, "expires_in": _SESSION_TTL}
 
 @app.get("/api/credentials/status", tags=["System"])
 async def credentials_status():

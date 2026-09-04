@@ -2,14 +2,24 @@
   "version": 2,
   "builds": [
     {
+      "src": "landing.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "Erick.jpg",
+      "use": "@vercel/static"
+    },
+    {
       "src": "api/main.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/main.py"
-    }
+    { "src": "/Erick.jpg",      "dest": "Erick.jpg" },
+    { "src": "/api/(.*)",       "dest": "api/main.py" },
+    { "src": "/(.*\\.(?:png|jpg|jpeg|gif|svg|ico|css|js))", "dest": "/$1" },
+    { "src": "/",               "dest": "landing.html" },
+    { "src": "/index.html",     "dest": "landing.html" },
+    { "src": "/(.*)",           "dest": "landing.html" }
   ]
 }

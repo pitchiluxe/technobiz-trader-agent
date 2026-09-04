@@ -192,6 +192,10 @@ HIGH_VOL_MULTIPLIER = 1.5       # ATR ratio above which market is "high volatili
 SIGNAL_EXPIRY_MINUTES  = 30     # signal valid for 30 min from kill zone start
 ENTRY_TIMEOUT_MINUTES  = 5      # cancel unfilled limit order after 5 min
 MIN_HOLD_MINUTES       = 5      # minimum position hold time
+
+# ── News Blackout ──────────────────────────────────────────────────────────────
+NEWS_BLACKOUT_MINUTES  = 10     # block trading this many minutes before AND after
+                               # a high-impact economic release
 LOWER_TF_LOOKBACK      = 12     # LTF candles to scan for confirmation candle
 
 # ── Staleness Check ────────────────────────────────────────────────────────────

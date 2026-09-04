@@ -59,6 +59,7 @@ from agents.workflow import TradingWorkflow
 from agents.workflow_orchestrator import WorkflowOrchestrator
 from config.settings import settings
 from database.db_manager import db_manager
+from config.news_blackout import is_news_blackout_active, get_active_blackout, get_upcoming_events
 try:
     from market_data.mt5_provider import MT5Provider
 except Exception:
@@ -783,11 +784,15 @@ app.add_middleware(
 
 # Auth middleware — every /api/* request must carry the correct X-GUI-Token header.
 # The SSE endpoint uses a query param (browsers cannot set custom headers on EventSource).
+# /api/auth/exchange is fully public — it is the login endpoint itself.
 class _AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        # Public paths: root HTML, favicon
+        # Fully public paths
         if path in ("/", "/favicon.ico"):
+            return await call_next(request)
+        # Auth exchange is the login endpoint — no token required to reach it
+        if path == "/api/auth/exchange":
             return await call_next(request)
         # SSE: token in query param
         if path == "/api/events":
@@ -828,11 +833,53 @@ async def root():
 
 @app.get("/api/status")
 async def api_status():
+    active = get_active_blackout()
     return {
         "connected":     state.connected,
         "cycle_running": state.cycle_running,
         "last_error":    state.last_error,
         "environment":   settings.ENVIRONMENT,
+        "news_blackout": {
+            "active":     active is not None,
+            "event_name": active.name if active else None,
+            "ends_at":    active.blackout_end.isoformat() if active else None,
+        },
+    }
+
+
+# ── Auth exchange ─────────────────────────────────────────────────────────────
+class AuthExchangeRequest(BaseModel):
+    key: str
+
+
+@app.post("/api/auth/exchange")
+async def auth_exchange(req: AuthExchangeRequest):
+    """
+    Login endpoint.  In this setup the server already injects _GUI_SECRET
+    into the page as window.__GUI_TOKEN__, so the exchange is effectively a
+    no-op that just confirms the key is valid and returns a session token.
+    """
+    submitted = (req.key or "").strip()
+    if not submitted:
+        raise HTTPException(400, "key cannot be empty")
+    if not secrets.compare_digest(submitted, _GUI_SECRET):
+        raise HTTPException(403, "Invalid key")
+    session_token = secrets.token_urlsafe(32)
+    return {"ok": True, "session_token": session_token}
+
+
+@app.get("/api/news")
+async def api_news():
+    """
+    Returns the current news-blackout status and upcoming high-impact events.
+    The 'blackout' field is true when trading is blocked (within ±10 min of an event).
+    """
+    active = get_active_blackout()
+    upcoming = get_upcoming_events(hours_ahead=48)
+    return {
+        "blackout":       active is not None,
+        "active_event":   active.to_dict() if active else None,
+        "upcoming_events": [e.to_dict() for e in upcoming],
     }
 
 
