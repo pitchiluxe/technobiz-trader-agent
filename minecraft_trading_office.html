@@ -5578,15 +5578,76 @@
 
         // ── Backend integration (FastAPI + SSE) ─────────────────────────────
         const API_BASE  = window.location.origin;
-        // Token injected by the server at page-serve time — never stored in
-        // localStorage or cookies; only accessible to this same-origin page.
-        const API_TOKEN = (typeof window.__GUI_TOKEN__ !== 'undefined')
-                        ? window.__GUI_TOKEN__ : '';
+        // Auth: the server may inject a pre-set token (dev/local with no auth
+        // configured), or the user must enter a key to exchange for a short-lived
+        // session token. Stored in sessionStorage so refresh keeps the session
+        // but new tabs/windows require re-auth.
+        let API_TOKEN = (typeof window.__GUI_TOKEN__ !== 'undefined' && window.__GUI_TOKEN__)
+                       ? window.__GUI_TOKEN__
+                       : (sessionStorage.getItem('gui_session_token') || '');
 
         // Authenticated fetch wrapper — attaches X-GUI-Token to every request.
         function apiFetch(path, opts = {}) {
             opts.headers = Object.assign({}, opts.headers, { 'X-GUI-Token': API_TOKEN });
             return fetch(API_BASE + path, opts);
+        }
+
+        // Exchange a long-lived key for a short-lived session token.
+        // Called when the user submits the login modal.
+        async function exchangeForSessionToken(key) {
+            const resp = await fetch(API_BASE + '/api/auth/exchange', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ key }),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({ detail: 'auth failed' }));
+                throw new Error(err.detail || `auth failed (HTTP ${resp.status})`);
+            }
+            const data = await resp.json();
+            API_TOKEN = data.session_token;
+            sessionStorage.setItem('gui_session_token', API_TOKEN);
+            return data;
+        }
+
+        function showLoginModal() {
+            // Create a minimal modal — kept inline so we don't need extra CSS files.
+            const overlay = document.createElement('div');
+            overlay.id = 'authOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10000;';
+            const box = document.createElement('div');
+            box.style.cssText = 'background:#1a1a2e;color:#eee;padding:24px 28px;border-radius:8px;min-width:340px;box-shadow:0 8px 32px rgba(0,0,0,0.5);border:1px solid #333;';
+            box.innerHTML = `
+                <h3 style="margin:0 0 12px;font-size:16px;color:#FFD700;">🔐 Authentication Required</h3>
+                <p style="margin:0 0 12px;font-size:13px;color:#bbb;">Enter your GUI key to access the dashboard.</p>
+                <input type="password" id="authKeyInput" placeholder="GUI_SECRET_KEY or DASHBOARD_API_KEY"
+                       style="width:100%;padding:8px 10px;background:#0f0f1e;color:#eee;border:1px solid #444;border-radius:4px;font-family:monospace;font-size:12px;box-sizing:border-box;" />
+                <div id="authError" style="color:#ff6b6b;font-size:12px;margin-top:8px;min-height:16px;"></div>
+                <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;">
+                    <button id="authSubmitBtn" style="background:#FFD700;color:#000;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-weight:600;">Connect</button>
+                </div>
+            `;
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+            const input = document.getElementById('authKeyInput');
+            const err   = document.getElementById('authError');
+            const btn   = document.getElementById('authSubmitBtn');
+            input.focus();
+            const submit = async () => {
+                const key = input.value.trim();
+                if (!key) { err.textContent = 'Key cannot be empty'; return; }
+                btn.disabled = true; btn.textContent = 'Connecting…';
+                try {
+                    await exchangeForSessionToken(key);
+                    document.body.removeChild(overlay);
+                    setStatus('🟢 Authenticated — ready');
+                } catch (e) {
+                    err.textContent = e.message;
+                    btn.disabled = false; btn.textContent = 'Connect';
+                }
+            };
+            btn.onclick = submit;
+            input.onkeydown = (ev) => { if (ev.key === 'Enter') submit(); };
         }
 
         let phaseWaiters = {};       // agentKey -> {resolve, reject}
@@ -6623,6 +6684,24 @@
             const zoomBtns = document.querySelectorAll('.zoom-btn');
             zoomBtns[0].onclick = zoomIn;
             zoomBtns[1].onclick = zoomOut;
+
+            // If no token was injected and we have no session token from a
+            // previous page load, show the login modal. We use a no-auth probe
+            // first so dev mode (no secret configured) just works.
+            if (!API_TOKEN) {
+                fetch(API_BASE + '/api/status', { method: 'GET' })
+                    .then(r => {
+                        if (r.status === 200 || r.status === 401) {
+                            // 200 = dev mode (no auth) or pre-injected token; 401 = needs auth
+                            if (r.status === 401) showLoginModal();
+                            return r.json().catch(() => ({}));
+                        }
+                        showLoginModal();
+                    })
+                    .catch(() => {
+                        // Backend unreachable — let other code handle the offline UI
+                    });
+            }
         });
 
         // Re-clamp agent positions when the window is resized so agents never

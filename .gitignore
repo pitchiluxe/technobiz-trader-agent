@@ -42,6 +42,11 @@ logs/
 *.sqlite
 *.sqlite3
 
+# Persisted agent state (peak equity, daily P&L runtime cache)
+.risk_state
+.risk_state.json
+risk_state.json
+
 # Environment
 .env
 .env.local
