@@ -130,8 +130,9 @@ class Backtester(BaseAgent):
                 for r in rows:
                     result.append({
                         "symbol":     r.pair or "",
-                        "session":    "",        # TradeExecution doesn't store session; signal join needed
-                        "entry_type": "",        # same
+                        # getattr handles both old schema (column absent) and new schema
+                        "session":    getattr(r, "session", None) or getattr(r, "session_", None) or "",
+                        "entry_type": getattr(r, "entry_type", None) or "",
                         "pnl":        r.pnl or 0.0,
                         "tp1_hit":    r.tp1_hit,
                         "tp2_hit":    r.tp2_hit,
@@ -144,7 +145,9 @@ class Backtester(BaseAgent):
             finally:
                 session.close()
         except Exception as exc:
-            self.logger.warning("[BACKTESTER] DB load failed: %s", exc)
+            # Log only the first line of the error to avoid noise in the logs
+            err_msg = str(exc).split("\n")[0]
+            self.logger.warning("[BACKTESTER] DB load skipped: %s", err_msg)
             return []
 
     # ------------------------------------------------------------------
@@ -292,7 +295,9 @@ class Backtester(BaseAgent):
         winners = [t["pnl"] for t in trades if t["pnl"] > 0]
         losers  = [abs(t["pnl"]) for t in trades if t["pnl"] < 0]
         avg_win  = (sum(winners) / len(winners)) if winners else 0.0
-        avg_loss = (sum(losers)  / len(losers))  if losers  else 1.0  # floor at 1.0
+        # When no losing trades exist (early-stage history), use 80% of avg_win as
+        # a realistic proxy — flooring at 1.0 punitively overstates drawdown.
+        avg_loss = (sum(losers) / len(losers)) if losers else (avg_win * 0.8)
         mc_dd    = self._monte_carlo_max_dd(wr, avg_win, avg_loss, n_trades=200)
 
         cl_risk  = self._consecutive_loss_risk(wr, 3)

@@ -41,7 +41,7 @@ _CORRELATION_CLUSTERS: List[frozenset] = [
     frozenset({"EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"}),   # USD-negative majors
     frozenset({"USDJPY", "USDCAD", "USDCHF"}),              # USD-positive majors
     frozenset({"GBPJPY", "EURJPY", "AUDJPY", "CADJPY"}),   # JPY crosses
-    frozenset({"XAUUSD", "EURUSD"}),                         # Gold / EUR correlation
+    frozenset({"XAUUSD", "USDCHF"}),                         # Gold / safe-haven CHF
     frozenset({"NASDAQ", "US30"}),                           # US equity indices
 ]
 

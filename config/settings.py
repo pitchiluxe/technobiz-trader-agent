@@ -85,6 +85,15 @@ class Settings:
         if _userdata_db else "sqlite:///technobiz.db"
     )
     DATABASE_URL = os.getenv("DATABASE_URL", _default_db)
+    # Validate scheme to prevent accidental misconfiguration (not a security boundary)
+    _ALLOWED_DB_SCHEMES = ("sqlite", "postgresql", "postgres", "mysql", "mariadb")
+    _db_scheme = DATABASE_URL.split("://", 1)[0].lower()
+    if _db_scheme not in _ALLOWED_DB_SCHEMES:
+        _log.warning(
+            "DATABASE_URL has unsupported scheme '%s' — falling back to SQLite",
+            _db_scheme,
+        )
+        DATABASE_URL = _default_db
     SQLALCHEMY_ECHO = DEBUG and ENVIRONMENT == "development"
 
     # SQLite is allowed in all environments for this desktop app.

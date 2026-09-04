@@ -17,6 +17,12 @@ class DatabaseManager:
         self.engine = None
         self.SessionLocal = None
         self._init_engine()
+        # Auto-create tables on first import so callers never see
+        # "no such table" errors.  Safe to call repeatedly.
+        try:
+            self.create_tables()
+        except Exception as exc:
+            logger.debug("Auto-create tables deferred: %s", exc)
 
     def _init_engine(self):
         """Initialize SQLAlchemy engine."""

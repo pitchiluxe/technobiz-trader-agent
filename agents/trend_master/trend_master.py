@@ -4,7 +4,7 @@ Timeframe hierarchy (highest → lowest):
     Weekly → Daily → 4H  (used for bias)
     1H                    (context only, not used for bias)
 
-Sprint 3C additions:
+Features:
   - Timeframe-adaptive swing window (SWING_WINDOWS from constants)
   - Confidence clamped to [0, 100] (prevents negative scores on extreme volatility)
   - Weekly/Daily results cached at module level (avoids re-computing on every 15-min cycle)

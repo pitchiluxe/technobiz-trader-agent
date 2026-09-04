@@ -235,10 +235,11 @@ class AnalyseMaster(BaseAgent):
         """
         if asr_high is None or asr_low is None:
             return None   # no ASR data — signal must be rejected at call site
+        asr_mid = (asr_high + asr_low) / 2.0
         if bias == "BULLISH":
-            return current < asr_high     # in lower half or below ASR
+            return current < asr_mid     # price in lower half of ASR
         if bias == "BEARISH":
-            return current > asr_low      # in upper half or above ASR
+            return current > asr_mid     # price in upper half of ASR
         return True
 
     # ------------------------------------------------------------------
@@ -401,8 +402,8 @@ class AnalyseMaster(BaseAgent):
         candles: List[OHLCData],
         bias:    str,
         symbol:  str,
-    ) -> Tuple[bool, Optional[float], Optional[float], bool]:
-        """Returns (ob_ok, zone_low, zone_high, displacement_confirmed)."""
+    ) -> Tuple[bool, Optional[float], Optional[float], bool, Optional[datetime]]:
+        """Returns (ob_ok, zone_low, zone_high, displacement_confirmed, candle_ts)."""
         spec           = get_instrument_spec(symbol)
         min_imp_factor = spec["min_impulse_factor"]
 
@@ -440,7 +441,7 @@ class AnalyseMaster(BaseAgent):
         candles: List[OHLCData],
         bias:    str,
         symbol:  str,
-    ) -> Tuple[bool, Optional[float], Optional[float]]:
+    ) -> Tuple[bool, Optional[float], Optional[float], bool, Optional[datetime]]:
         spec           = get_instrument_spec(symbol)
         min_imp_factor = spec["min_impulse_factor"]
         sl_buf         = spec["sl_buffer"]
@@ -489,7 +490,7 @@ class AnalyseMaster(BaseAgent):
         candles: List[OHLCData],
         bias:    str,
         symbol:  str,
-    ) -> Tuple[bool, Optional[float], Optional[float]]:
+    ) -> Tuple[bool, Optional[float], Optional[float], bool, Optional[datetime]]:
         spec         = get_instrument_spec(symbol)
         min_gap      = spec["pip_size"] * spec["min_fvg_pips"]
         pip_threshold = spec["pip_threshold"]
@@ -1020,8 +1021,13 @@ class AnalyseMaster(BaseAgent):
         # ── 11. Trade levels ───────────────────────────────────────────
         sl, tp1, tp2, tp3, rr = self._trade_levels(bias, entry, zone_bot, zone_top, symbol)
 
-        if rr < MIN_RR_RATIO:
-            self.logger.warning("[ANALYSE-MASTER] R:R %.2f < %.2f — rejected", rr, MIN_RR_RATIO)
+        # Apply regime-specific RR floor if the workflow set one; fall back to constant.
+        effective_min_rr = float(trend_report.get("_regime_rr_floor", MIN_RR_RATIO))
+        if rr < effective_min_rr:
+            self.logger.warning(
+                "[ANALYSE-MASTER] R:R %.2f < regime floor %.2f — rejected",
+                rr, effective_min_rr,
+            )
             return None
 
         # ── 12. Confidence ─────────────────────────────────────────────

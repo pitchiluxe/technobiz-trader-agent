@@ -77,6 +77,9 @@ class TradeExecution(Base):
     exit_reason    = Column(String, nullable=True)  # TP_HIT | SL_HIT | MANUAL_CLOSE
     pnl            = Column(Float, nullable=True)
     slippage       = Column(Float, nullable=True)
+    # Analytics columns — enable per-session and per-pattern win-rate grouping
+    session        = Column(String, nullable=True)   # london | new_york | asian
+    entry_type     = Column(String, nullable=True)   # ORDER_BLOCK | BREAKER_BLOCK | FVG
 
     __table_args__ = (
         Index("ix_exec_pair_ts", "pair", "timestamp"),

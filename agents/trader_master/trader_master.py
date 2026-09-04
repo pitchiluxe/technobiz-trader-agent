@@ -102,6 +102,9 @@ class ExecutionRecord:
         # Trailing stop state for the remaining 20% position after TP2
         self.trail_sl: Optional[float] = None
         self.trail_high_water: Optional[float] = None
+        # Live position size (decremented after each partial close so TP2/TP3
+        # compute volume off the actual remaining position, not the original).
+        self.remaining_volume: float = position_size
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -464,7 +467,8 @@ class TraderMaster(BaseAgent):
         """
         Poll MT5 every 60 seconds.  Handles:
         - TP1: close 50% of position, move SL to break-even
-        - TP2: close 30% of remaining position
+        - TP2: close 60% of the REMAINING half (≈30% of original)
+        - TP3: trailing stop on final 20%
         - Position no longer found: record as closed (SL or TP3 trail)
         """
         POLL_INTERVAL = 60
@@ -549,6 +553,7 @@ class TraderMaster(BaseAgent):
                         )
                         if ok:
                             execution.tp1_hit = True
+                            execution.remaining_volume -= half_vol   # track remaining position
                             sl_ok = await self.mt5_provider.modify_sl(
                                 ticket = execution.mt5_ticket,
                                 symbol = execution.symbol,
@@ -575,8 +580,10 @@ class TraderMaster(BaseAgent):
                     (execution.direction == "SELL" and current_price <= execution.take_profit_2)
                 )
                 if tp2_reached:
-                    # Close 30% of the ORIGINAL size (≈ 60% of remaining half)
-                    close_vol = round(execution.position_size * 0.30, 2)
+                    # Close 60% of the REMAINING half (= 30% of original size).
+                    # Using remaining_volume (not position_size) means subsequent
+                    # partial closes correctly reduce off the live position.
+                    close_vol = round(execution.remaining_volume * 0.60, 2)
                     if close_vol >= 0.01:
                         ok = await self.mt5_provider.close_position(
                             ticket     = execution.mt5_ticket,
@@ -586,6 +593,7 @@ class TraderMaster(BaseAgent):
                         )
                         if ok:
                             execution.tp2_hit = True
+                            execution.remaining_volume -= close_vol   # track for trail
                             # Initialise the trailing-stop state for the
                             # remaining 20% of the position.
                             execution.trail_high_water = current_price
@@ -853,11 +861,26 @@ class TraderMaster(BaseAgent):
         async with self._trade_lock:
             active = [t for t in self.open_trades if t.status in ("PENDING", "OPEN")]
             if len(active) >= effective_max_ct:
+                # Position is already open in MT5 — close it immediately so
+                # we don't leak an unmanaged position, then flag for review.
                 self.logger.error(
                     "[TRADER-MASTER] Race — concurrent limit (%d) exceeded after MT5 order. "
-                    "Ticket=%d placed but NOT tracked. Manual review required.",
+                    "Ticket=%d placed — closing immediately and flagging for review.",
                     effective_max_ct, execution.mt5_ticket,
                 )
+                if self.mt5_provider is not None and execution.mt5_ticket:
+                    try:
+                        await self.mt5_provider.close_position(
+                            ticket=execution.mt5_ticket,
+                            symbol=execution.symbol,
+                            volume=execution.position_size,
+                            order_type=execution.direction,
+                        )
+                    except Exception as close_exc:
+                        self.logger.critical(
+                            "[TRADER-MASTER] FAILED to close orphaned position ticket=%d: %s",
+                            execution.mt5_ticket, close_exc,
+                        )
                 return None
             self.open_trades.append(execution)
 

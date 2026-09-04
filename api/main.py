@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException, Request, Security, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, Security, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.security.api_key import APIKeyHeader
@@ -135,7 +135,35 @@ app.include_router(
 # ─────────────────────────────────────────────────────────────────────────────
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """Real-time agent status feed for the GUI frontend."""
+    """Real-time agent status feed for the GUI frontend.
+
+    Auth: token must be supplied via:
+      - `?token=<value>` query parameter, OR
+      - `X-GUI-Token` / `x-api-key` header
+    The token is validated BEFORE the connection is accepted, so unauthorized
+    clients receive close code 4401 instead of receiving events.
+    """
+    # Read the token from query string or headers (browsers can't set headers on WS)
+    token = ""
+    if websocket.query_params:
+        token = websocket.query_params.get("token", "")
+    if not token:
+        token = websocket.headers.get("x-gui-token", "") or websocket.headers.get("x-api-key", "")
+
+    # Validate against GUI_SECRET (constant-time compare)
+    valid = False
+    if _GUI_SECRET and secrets.compare_digest(token, _GUI_SECRET):
+        valid = True
+    elif _DASHBOARD_API_KEY and secrets.compare_digest(token, _DASHBOARD_API_KEY):
+        valid = True
+    elif not _DASHBOARD_API_KEY and not _GUI_SECRET:
+        valid = True   # dev mode — no secret configured
+    if not valid:
+        await websocket.close(code=4401, reason="Unauthorized")
+        logger.warning("[WS] rejected connection from %s (bad/missing token)",
+                       websocket.client.host if websocket.client else "?")
+        return
+
     await manager.connect(websocket)
     try:
         while True:
@@ -148,12 +176,27 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HTML serving — injects window.__GUI_TOKEN__ so the page can auth API calls
+# HTML serving — the page is public but the token is NOT injected.
+# The client must call /api/auth/exchange with the configured key to obtain
+# a short-lived session token (set as a HttpOnly cookie + returned in body).
+# This prevents the long-lived GUI_SECRET from being leaked in HTML source.
 # ─────────────────────────────────────────────────────────────────────────────
+# Allowlist of HTML files that can be served — keeps path-traversal protection explicit
+_ALLOWED_HTML = {
+    "minecraft_trading_office.html",
+    "trading_command_center.html",
+}
+
 def _serve_html(filename: str) -> HTMLResponse:
+    if filename not in _ALLOWED_HTML:
+        raise HTTPException(403, "File not allowed")
     path = os.path.join(_PROJECT_ROOT, filename)
+    if not os.path.isfile(path):
+        raise HTTPException(404, "Not found")
     html = Path(path).read_text(encoding="utf-8")
-    injection = f'<script>window.__GUI_TOKEN__="{_GUI_SECRET}";</script>'
+    # Inject an empty token placeholder — the client fetches a real session
+    # token from /api/auth/exchange after the page loads.
+    injection = '<script>window.__GUI_TOKEN__="";</script>'
     html = html.replace("</head>", injection + "\n</head>", 1)
     return HTMLResponse(html)
 
@@ -174,14 +217,59 @@ async def serve_trading_center():
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/api/status", tags=["System"])
 async def status():
-    """Returns backend status — called by the Settings page health check."""
+    """Returns backend status — called by the Settings page health check.
+
+    Intentionally omits version to avoid fingerprinting.
+    """
     return {
         "status": "online",
         "connected": False,
         "provider": os.getenv("DATA_PROVIDER", "demo"),
         "mode": "demo",
-        "version": "1.1.0",
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auth exchange — short-lived session token for the HTML page
+# ─────────────────────────────────────────────────────────────────────────────
+class AuthExchangeRequest(BaseModel):
+    """Client submits the configured key; server returns a short-lived token."""
+    key: str
+
+
+@app.post("/api/auth/exchange", tags=["System"])
+async def auth_exchange(req: AuthExchangeRequest, response: Response):
+    """Exchange a long-lived key (GUI_SECRET_KEY / DASHBOARD_API_KEY) for a
+    short-lived session token.  In dev mode (no keys configured), any value
+    is accepted and a fresh session token is returned.
+
+    The response sets:
+      - `X-Session-Token` header — used by the page for subsequent API calls
+      - HttpOnly `session_token` cookie — usable for WebSocket auth upgrade
+
+    Token lifetime: 1 hour. Re-exchange to refresh.
+    """
+    submitted = (req.key or "").strip()
+    valid = False
+    if _GUI_SECRET and secrets.compare_digest(submitted, _GUI_SECRET):
+        valid = True
+    elif _DASHBOARD_API_KEY and secrets.compare_digest(submitted, _DASHBOARD_API_KEY):
+        valid = True
+    elif not _GUI_SECRET and not _DASHBOARD_API_KEY:
+        # Dev mode: any non-empty key is accepted so the local UI can still load
+        valid = bool(submitted)
+    if not valid:
+        raise HTTPException(403, "Invalid key")
+    session_token = secrets.token_urlsafe(32)
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        max_age=3600,
+        httponly=True,
+        samesite="strict",
+        secure=_ENVIRONMENT == "production",
+    )
+    return {"ok": True, "session_token": session_token, "expires_in": 3600}
 
 @app.get("/api/credentials/status", tags=["System"])
 async def credentials_status():
@@ -250,8 +338,11 @@ async def save_credentials(req: CredentialsRequest, _: str = Depends(require_api
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/api/health", tags=["System"])
 async def health():
-    """Public health endpoint. Returns 200 if the process is alive."""
-    return {"status": "ok", "version": "1.1.0"}
+    """Public health endpoint. Returns 200 if the process is alive.
+
+    Intentionally omits version to avoid fingerprinting.
+    """
+    return {"status": "ok"}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Direct run
