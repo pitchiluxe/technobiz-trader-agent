@@ -16,8 +16,11 @@ take effect on the very next cycle without a process restart.
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..base_agent import BaseAgent
@@ -25,6 +28,13 @@ from config.constants import KILL_ZONES_UTC
 from config.user_risk_settings import RiskSettingsManager
 
 logger = logging.getLogger(__name__)
+
+# Path for persisting risk state across process restarts (peak equity).
+# In Electron: TECHNOBIZ_USERDATA is set, so we write there.
+# Otherwise: a hidden file next to the repo root.
+_USERDATA       = os.getenv("TECHNOBIZ_USERDATA", "").strip()
+_RISK_STATE_DIR = Path(_USERDATA) if _USERDATA else Path(__file__).resolve().parent.parent.parent
+_RISK_STATE_FILE = _RISK_STATE_DIR / (".risk_state" if _USERDATA else ".risk_state.json")
 
 # Correlated pair clusters — only one open position allowed per cluster
 _CORRELATION_CLUSTERS: List[frozenset] = [
@@ -91,7 +101,32 @@ class RiskSentinel(BaseAgent):
             ),
             verbose=verbose,
         )
-        self._peak_equity: float = 0.0   # high-water mark for equity-curve protection
+        self._peak_equity: float = self._load_peak_equity()
+
+    def _load_peak_equity(self) -> float:
+        """Restore high-water mark from disk so equity protection works after restart."""
+        try:
+            if _RISK_STATE_FILE.exists():
+                data = json.loads(_RISK_STATE_FILE.read_text(encoding="utf-8"))
+                return float(data.get("peak_equity", 0.0))
+        except (OSError, ValueError, TypeError) as exc:
+            self.logger.debug("[RISK-SENTINEL] peak_equity restore skipped: %s", exc)
+        return 0.0
+
+    def _save_peak_equity(self) -> None:
+        """Persist high-water mark to disk on every update."""
+        try:
+            _RISK_STATE_DIR.mkdir(parents=True, exist_ok=True)
+            _RISK_STATE_FILE.write_text(
+                json.dumps({"peak_equity": self._peak_equity}),
+                encoding="utf-8",
+            )
+            try:
+                os.chmod(_RISK_STATE_FILE, 0o600)
+            except (OSError, AttributeError):
+                pass
+        except OSError as exc:
+            self.logger.debug("[RISK-SENTINEL] peak_equity persist skipped: %s", exc)
 
     async def analyze(self, *args: Any, **kwargs: Any) -> Any:
         """Satisfy BaseAgent abstract requirement — delegates to assess()."""
@@ -135,6 +170,7 @@ class RiskSentinel(BaseAgent):
             return 1.0, None
         if current_equity > self._peak_equity:
             self._peak_equity = current_equity
+            self._save_peak_equity()
         if self._peak_equity == 0:
             return 1.0, None
         dip_pct = (self._peak_equity - current_equity) / self._peak_equity * 100.0

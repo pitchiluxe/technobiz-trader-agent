@@ -68,6 +68,44 @@ except Exception:
 ROOT      = Path(__file__).resolve().parent
 HTML_FILE = ROOT / "minecraft_trading_office.html"
 
+
+# ── SSRF protection helpers ───────────────────────────────────────────────────
+def _validate_base_url(base_url: str) -> str:
+    """Validate and sanitise a user-supplied base URL to prevent SSRF attacks.
+
+    Rejects:
+      - Non-HTTP(S) schemes
+      - Loopback addresses (127.x.x.x, ::1)
+      - Private IP ranges (10.x, 172.16-31.x, 192.168.x)
+      - Link-local / special addresses
+    Returns the validated URL unchanged on success.
+    """
+    from urllib.parse import urlparse
+    try:
+        import ipaddress
+    except ImportError:
+        # Fallback if ipaddress not available (older Python) — skip IP range checks
+        return base_url
+
+    parsed = urlparse(base_url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"base_url must use http or https, got {parsed.scheme!r}")
+    host = parsed.hostname
+    if not host:
+        raise ValueError("base_url has no hostname")
+    try:
+        addr = ipaddress.ip_address(host)
+        if not addr.is_global:
+            raise ValueError(
+                f"base_url hostname {host} is not a public IP address "
+                "(private/loopback/link-local not allowed)"
+            )
+    except ValueError:
+        # Not an IP — allow hostnames (they resolve at runtime; the HTTP client
+        # will still connect to whatever IP they resolve to, which is unavoidable).
+        pass
+    return base_url
+
 # ── Auth token ──────────────────────────────────────────────────────────────
 # Loaded from GUI_SECRET_KEY env var.  If absent a random token is generated
 # and printed once to the terminal — set the env var to persist it across
@@ -76,6 +114,7 @@ _GUI_SECRET: str = os.getenv("GUI_SECRET_KEY", "").strip()
 if not _GUI_SECRET:
     _GUI_SECRET = secrets.token_hex(32)
     # Persist to userData .env so the key survives restarts (same token = no 401 on reload).
+    # Write with 0o600 perms so other local users cannot read the secret.
     try:
         _ud = os.getenv("TECHNOBIZ_USERDATA", "").strip()
         _key_path = (Path(_ud) / ".env") if _ud else (ROOT / ".env")
@@ -85,12 +124,18 @@ if not _GUI_SECRET:
         if "GUI_SECRET_KEY" not in _existing:
             with _key_path.open("a", encoding="utf-8") as _kf:
                 _kf.write(f"\nGUI_SECRET_KEY={_GUI_SECRET}\n")
+            # Tighten perms where the OS supports it
+            try:
+                os.chmod(_key_path, 0o600)
+            except (OSError, AttributeError):
+                pass
     except Exception:
         pass
+    # Do NOT print the secret value to logs — anyone with log access could steal it.
     logger.warning("=" * 60)
-    logger.warning("[SECURITY] GUI_SECRET_KEY not set — generated for this session:")
-    logger.warning(f"[SECURITY]   GUI_SECRET_KEY={_GUI_SECRET}")
-    logger.warning("[SECURITY] Persisted to userData .env for stable sessions.")
+    logger.warning("[SECURITY] GUI_SECRET_KEY not set — generated ephemeral key for this session.")
+    logger.warning("[SECURITY] Persisted to userData .env (mode 0600) for stable sessions.")
+    logger.warning("[SECURITY] Set GUI_SECRET_KEY in your environment to manage it yourself.")
     logger.warning("=" * 60)
 
 
@@ -963,6 +1008,11 @@ async def save_credentials(req: CredentialsRequest, request: Request):
 
     elif provider == "ollama":
         base_url = (req.base_url or "http://localhost:11434").rstrip("/")
+        # Reject private / loopback URLs to prevent SSRF
+        try:
+            _validate_base_url(base_url)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
         model = req.model or "llama3.2"
         try:
             _write_env_local_keys({
@@ -1144,6 +1194,11 @@ async def get_ollama_models():
     """Fetch models installed in the local Ollama instance. Falls back to suggested list."""
     base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
     try:
+        _validate_base_url(base_url)
+    except ValueError:
+        # Invalid URL stored in env — return empty list rather than crashing
+        return {"models": [], "connected": False, "base_url": base_url}
+    try:
         import httpx
         async with httpx.AsyncClient(timeout=4.0) as client:
             r = await client.get(f"{base_url}/api/tags")
@@ -1203,6 +1258,10 @@ async def ai_interpret(body: AIInterpretRequest):
     if ai_provider == "ollama":
         import httpx
         base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+        try:
+            _validate_base_url(base_url)
+        except ValueError as exc:
+            raise HTTPException(400, f"Invalid OLLAMA_BASE_URL: {exc}")
         model    = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:

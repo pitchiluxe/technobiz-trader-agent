@@ -345,7 +345,9 @@ class AnalyseMaster(BaseAgent):
                     return True, key, abs_idx, vol_ok
 
         elif bias == "BEARISH" and swing_highs:
-            key = max(swing_highs[-3:]) if len(swing_highs) >= 3 else max(swing_highs)
+            # Use the highest of the most recent swing highs (sorted for consistency with bullish)
+            recent_highs = sorted(swing_highs[-3:]) if len(swing_highs) >= 3 else sorted(swing_highs)
+            key = max(recent_highs)
             for i, c in enumerate(recent):
                 if c.high > key + threshold and c.close < key:
                     abs_idx = len(candles) - 8 + i
@@ -382,7 +384,8 @@ class AnalyseMaster(BaseAgent):
                 return True, prev_high
 
         elif bias == "BEARISH" and len(swing_lows) >= 2:
-            prev_low = sorted(swing_lows)[1]
+            # Second-highest swing low (the "higher low" that must break for bearish BoS)
+            prev_low = sorted(swing_lows)[-2]
             if last_close < prev_low - threshold:
                 self.logger.debug("[ANALYSE] Bearish BoS below %.5f", prev_low)
                 return True, prev_low

@@ -176,6 +176,9 @@ class TraderMaster(BaseAgent):
         # Lock for atomic check-and-append of open_trades
         self._trade_lock: asyncio.Lock = asyncio.Lock()
 
+        # Restore daily_loss from DB so circuit breaker works after restart
+        self._load_daily_loss()
+
     # ------------------------------------------------------------------
     # Day-boundary reset
     # ------------------------------------------------------------------
@@ -239,9 +242,12 @@ class TraderMaster(BaseAgent):
     # ------------------------------------------------------------------
 
     def _record_trade_outcome(self, pnl: float) -> None:
-        """Update streak counters.  Call after each trade closes."""
+        """Update streak counters and persist daily P&L.  Call after each trade closes."""
         if pnl < 0:
             self.consecutive_losses += 1
+            # Accumulate daily loss (as fraction of account) so circuit breaker works
+            balance = max(getattr(settings, "ACCOUNT_BALANCE", 10000.0), 1.0)
+            self.daily_loss += abs(pnl) / balance
             if self.consecutive_losses >= CONSECUTIVE_LOSS_LIMIT:
                 self.reduced_sizing_remaining = SIZE_REDUCTION_TRADES
                 self.consecutive_losses = 0
@@ -252,6 +258,54 @@ class TraderMaster(BaseAgent):
                 )
         else:
             self.consecutive_losses = 0
+
+        # Persist daily P&L to DB so it survives process restarts
+        self._persist_daily_loss(pnl)
+
+    def _persist_daily_loss(self, pnl: float) -> None:
+        """Write today's running P&L to the database for crash-recovery."""
+        try:
+            from database.db_manager import db_manager
+            from database.models import PerformanceMetric
+            from datetime import datetime
+            today = datetime.utcnow().strftime("%Y-%m-%d")
+            session = db_manager.get_session()
+            try:
+                row = session.query(PerformanceMetric).filter_by(date=today).first()
+                if row:
+                    row.daily_pnl = (row.daily_pnl or 0.0) + pnl
+                else:
+                    session.add(PerformanceMetric(date=today, daily_pnl=pnl))
+                session.commit()
+            except Exception:
+                session.rollback()
+            finally:
+                session.close()
+        except Exception as exc:
+            # Don't crash the trade flow on a DB write failure — log and continue
+            self.logger.debug("[TRADER-MASTER] daily_loss persist skipped: %s", exc)
+
+    def _load_daily_loss(self) -> None:
+        """Restore today's running P&L from DB on startup."""
+        try:
+            from database.db_manager import db_manager
+            from database.models import PerformanceMetric
+            from datetime import datetime
+            today = datetime.utcnow().strftime("%Y-%m-%d")
+            session = db_manager.get_session()
+            try:
+                row = session.query(PerformanceMetric).filter_by(date=today).first()
+                if row and row.daily_pnl is not None:
+                    balance = max(getattr(settings, "ACCOUNT_BALANCE", 10000.0), 1.0)
+                    self.daily_loss = abs(row.daily_pnl) / balance
+                    self.logger.info(
+                        "[TRADER-MASTER] Restored daily_loss=%.2f%% from DB (today=%s)",
+                        self.daily_loss * 100, today,
+                    )
+            finally:
+                session.close()
+        except Exception as exc:
+            self.logger.debug("[TRADER-MASTER] daily_loss restore skipped: %s", exc)
 
     # ------------------------------------------------------------------
     # Position sizing (instrument-aware)
@@ -333,7 +387,7 @@ class TraderMaster(BaseAgent):
         try:
             end = datetime.fromisoformat(signal["kill_zone_end"])
             now = datetime.now(end.tzinfo) if end.tzinfo else datetime.now()
-            return now <= end
+            return now < end
         except (KeyError, ValueError):
             self.logger.warning("[TRADER] kill_zone_end missing/malformed — rejecting trade")
             return False
@@ -418,6 +472,9 @@ class TraderMaster(BaseAgent):
         MAX_CONSECUTIVE_ERRORS = 10
         consecutive_errors = 0
 
+        # Track last known price so we can compute P&L if the position disappears
+        last_known_price: float = execution.entry_price
+
         while True:
             await asyncio.sleep(POLL_INTERVAL)
 
@@ -442,19 +499,38 @@ class TraderMaster(BaseAgent):
                 continue
 
             if pos is None:
-                # Position closed by broker (SL/TP/trail)
+                # Position closed by broker (SL/TP/trail). Compute P&L from the
+                # last observed price so the daily-drawdown circuit breaker and
+                # consecutive-loss counter actually fire.
+                # remaining_volume: only the portion still open is settled
+                remaining_vol = execution.position_size
+                if execution.tp1_hit:
+                    remaining_vol -= round(execution.position_size * 0.50, 2)
+                if execution.tp2_hit:
+                    remaining_vol -= round(execution.position_size * 0.30, 2)
+                remaining_vol = max(remaining_vol, 0.0)
+
+                if execution.direction == "BUY":
+                    closed_pnl = (last_known_price - execution.entry_price) * remaining_vol
+                else:
+                    closed_pnl = (execution.entry_price - last_known_price) * remaining_vol
+
+                execution.p_and_l = (execution.p_and_l or 0.0) + closed_pnl
+                execution.exit_price = last_known_price
                 execution.status = "CLOSED"
                 execution.exit_time = datetime.now()
                 execution.exit_reason = "BROKER_CLOSE"
                 self.logger.info(
-                    "[MONITOR] ticket=%d %s %s — position closed by broker",
+                    "[MONITOR] ticket=%d %s %s — closed by broker @ %.5f (P&L=%.2f)",
                     execution.mt5_ticket, execution.direction, execution.symbol,
+                    last_known_price, closed_pnl,
                 )
-                self._record_trade_outcome(execution.p_and_l or 0.0)
+                self._record_trade_outcome(execution.p_and_l)
                 self._monitor_tasks.pop(execution.mt5_ticket, None)
                 break
 
             current_price = float(pos.get("price_current", pos["price_open"]))
+            last_known_price = current_price
 
             # ── TP1 check ──────────────────────────────────────────────
             if not execution.tp1_hit:
