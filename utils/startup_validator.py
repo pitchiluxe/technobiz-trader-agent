@@ -104,6 +104,67 @@ class StartupValidator:
         return True
 
     @staticmethod
+    def check_ollama() -> bool:
+        """
+        Check if Ollama is running and the configured model is available.
+
+        Returns:
+            True if Ollama is healthy, False otherwise.
+        """
+        from config.settings import settings
+        import httpx
+
+        if settings.AI_PROVIDER != "ollama":
+            logger.info("[OLLAMA] Skipped — AI_PROVIDER=%s", settings.AI_PROVIDER)
+            return True
+
+        base_url = settings.OLLAMA_BASE_URL.rstrip("/")
+        model    = settings.OLLAMA_MODEL
+
+        try:
+            with httpx.Client(timeout=4.0) as client:
+                # Health ping
+                r = client.get(f"{base_url}/api/tags")
+                if r.status_code != 200:
+                    logger.warning(
+                        "[OLLAMA] ⚠️  Ollama responded with HTTP %d — is it running?",
+                        r.status_code,
+                    )
+                    return False
+
+                # Check model is installed
+                installed = {m["name"] for m in r.json().get("models", [])}
+                if model not in installed:
+                    # Try with :latest suffix
+                    with_colon = [m for m in installed if m.startswith(model + ":")]
+                    if not with_colon:
+                        logger.warning(
+                            "[OLLAMA] ⚠️  Model '%s' not found. Installed: %s. Run: ollama pull %s",
+                            model, sorted(installed), model,
+                        )
+                        return False
+                    logger.info(
+                        "[OLLAMA] Model '%s' matched installed: %s", model, with_colon[0]
+                    )
+
+            logger.info(
+                "[OLLAMA] ✅ Connected — provider=ollama  model=%s  base_url=%s",
+                model, base_url,
+            )
+            return True
+
+        except httpx.ConnectError:
+            logger.warning(
+                "[OLLAMA] ⚠️  Cannot connect to Ollama at %s. "
+                "Start with: ollama serve  |  Install model: ollama pull %s",
+                base_url, model,
+            )
+            return False
+        except Exception as e:
+            logger.warning("[OLLAMA] ⚠️  Health check failed: %s", e)
+            return False
+
+    @staticmethod
     def check_mt5_terminal() -> bool:
         """
         Check if MetaTrader 5 terminal is running and accessible.
@@ -164,8 +225,9 @@ class StartupValidator:
 
         checks = [
             ("Environment Variables", StartupValidator.validate),
+            ("Ollama Connection",     StartupValidator.check_ollama),
             ("MetaTrader 5 Terminal", StartupValidator.check_mt5_terminal),
-            ("Database Connection", StartupValidator.check_database),
+            ("Database Connection",   StartupValidator.check_database),
         ]
 
         results = []

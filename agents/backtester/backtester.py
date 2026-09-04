@@ -239,7 +239,7 @@ class Backtester(BaseAgent):
         > 1.0 : system is performing above the 60% target → boost
         = 1.0 : system is performing at target
         < 1.0 : system is underperforming → reduce
-        Clamped to [0.60, 1.20].
+        Clamped to [0.80, 1.00] — backtest data never inflates live confidence.
         """
         if sample_size < _MIN_SAMPLE:
             return 1.0   # no adjustment without enough data
@@ -247,7 +247,9 @@ class Backtester(BaseAgent):
         wr_factor  = win_rate / target_wr          # 1.0 at target
         pf_factor  = min(profit_factor / 1.5, 1.5)  # 1.0 at PF=1.5
         raw = (wr_factor * 0.7) + (pf_factor * 0.3)
-        return round(max(0.60, min(1.20, raw)), 3)
+        # Clamp to [0.80, 1.00] — backtest data should reduce, not inflate,
+        # the live confidence. Above 1.0 is a regression guard.
+        return round(max(0.80, min(1.00, raw)), 3)
 
     # ------------------------------------------------------------------
     # Main entry point
@@ -286,10 +288,12 @@ class Backtester(BaseAgent):
         pattern_rates = self._group_win_rates(trades, "entry_type")
         symbol_rates  = self._group_win_rates(trades, "symbol")
 
-        # Monte Carlo
-        winners  = [t["pnl"] for t in trades if t["pnl"] > 0]
+        # Monte Carlo — use actual average win AND average loss
+        winners = [t["pnl"] for t in trades if t["pnl"] > 0]
+        losers  = [abs(t["pnl"]) for t in trades if t["pnl"] < 0]
         avg_win  = (sum(winners) / len(winners)) if winners else 0.0
-        mc_dd    = self._monte_carlo_max_dd(wr, avg_win, 1.0, n_trades=200)
+        avg_loss = (sum(losers)  / len(losers))  if losers  else 1.0  # floor at 1.0
+        mc_dd    = self._monte_carlo_max_dd(wr, avg_win, avg_loss, n_trades=200)
 
         cl_risk  = self._consecutive_loss_risk(wr, 3)
         conf_mul = self._confidence_multiplier(wr, pf, n)

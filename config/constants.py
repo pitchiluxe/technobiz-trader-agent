@@ -163,6 +163,9 @@ OB_LOOKBACK_BREAKER   = 60     # extended for breaker block (older OBs)
 OB_PERSISTENCE_HOURS  = 168    # persisted OB expires after 7 days
 
 # ── Kill Zone Windows (UTC hour, inclusive start / exclusive end) ──────────────
+# Session-based filtering: signals are only generated during these windows.
+# This is distinct from the ICT micro-timing concept of a 15-30 min entry window
+# after an order block is identified (implemented via kill_zone_end in signals).
 KILL_ZONES_UTC: Dict[str, tuple] = {
     "asian":    (0,  8),       # 00:00–08:00 UTC  (accumulation / ASR build)
     "london":   (8,  11),      # 08:00–11:00 UTC  (manipulation + direction set)

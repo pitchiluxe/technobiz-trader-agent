@@ -99,6 +99,9 @@ class ExecutionRecord:
         # Monitor flags — set by _monitor_trade background task
         self.tp1_hit: bool = False
         self.tp2_hit: bool = False
+        # Trailing stop state for the remaining 20% position after TP2
+        self.trail_sl: Optional[float] = None
+        self.trail_high_water: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -170,6 +173,9 @@ class TraderMaster(BaseAgent):
         # Background monitor tasks indexed by MT5 ticket
         self._monitor_tasks: Dict[int, asyncio.Task] = {}
 
+        # Lock for atomic check-and-append of open_trades
+        self._trade_lock: asyncio.Lock = asyncio.Lock()
+
     # ------------------------------------------------------------------
     # Day-boundary reset
     # ------------------------------------------------------------------
@@ -203,7 +209,7 @@ class TraderMaster(BaseAgent):
             return
 
         for pos in positions:
-            if pos.get("magic") == 202600 or True:   # accept all our positions
+            if pos.get("magic") == 202600:   # only positions opened by this system
                 rec = ExecutionRecord(
                     signal_id     = f"RECOVERED-{pos['ticket']}",
                     entry_price   = float(pos["price_open"]),
@@ -259,6 +265,7 @@ class TraderMaster(BaseAgent):
         balance:      float,
         risk_mult:    float = 1.0,
         adjusted_pct: Optional[float] = None,
+        atr:          Optional[float] = None,
     ) -> float:
         """
         Calculate position size respecting user risk settings.
@@ -269,22 +276,27 @@ class TraderMaster(BaseAgent):
           3. Constants fallback (MAX_RISK_PER_TRADE)
 
         sizing_mode in {"fixed", "percentage", "volatility", "equity_scaling"}.
+
+        `atr` (current H1 ATR) is required when sizing_mode == "volatility";
+        when omitted, falls back to 0.80 haircut with a warning.
         """
         s    = RiskSettingsManager.get()
         spec = get_instrument_spec(symbol)
+        max_lots = spec.get("max_lot_size", 100.0)
+        min_lots = spec.get("min_lot_size", 0.01)
 
         # ── Fixed lot mode ─────────────────────────────────────────────
         if s.sizing_mode == "fixed":
-            return round(max(0.01, min(10.0, s.fixed_lot_size * risk_mult)), 2)
+            return round(max(min_lots, min(max_lots, s.fixed_lot_size * risk_mult)), 2)
 
         pip_size = spec["pip_size"]
         pip_val  = spec["pip_value_per_lot"]
         risk_price = abs(entry - sl)
         if risk_price == 0:
-            return 0.01
+            return min_lots
         risk_pips = risk_price / pip_size
         if risk_pips == 0:
-            return 0.01
+            return min_lots
 
         # Effective risk % — prefer Risk-Sentinel adjusted value
         effective_pct = (
@@ -295,11 +307,22 @@ class TraderMaster(BaseAgent):
         dollars = balance * effective_pct
         raw     = dollars / (risk_pips * pip_val)
 
-        # ── Volatility mode: scale down when ATR is elevated ──────────
+        # ── Volatility mode: scale inversely to ATR vs. average ATR ────
         if s.sizing_mode == "volatility":
-            raw *= 0.80   # conservative without live ATR here; agents apply full scaling
+            if atr and atr > 0:
+                # avg_atr: typical 14-period ATR for the symbol's pip threshold.
+                # Scale lots down when current ATR is above average (hot market),
+                # scale up when ATR is below average (calm market).
+                avg_atr = spec["pip_threshold"] * 100  # heuristic baseline
+                vol_mult = max(0.25, min(1.5, avg_atr / atr))
+                raw *= vol_mult
+            else:
+                self.logger.warning(
+                    "[TRADER] volatility mode but no ATR provided — using 0.80 haircut"
+                )
+                raw *= 0.80
 
-        raw = round(max(0.01, min(10.0, raw * risk_mult)), 2)
+        raw = round(max(min_lots, min(max_lots, raw * risk_mult)), 2)
         return raw
 
     # ------------------------------------------------------------------
@@ -312,7 +335,26 @@ class TraderMaster(BaseAgent):
             now = datetime.now(end.tzinfo) if end.tzinfo else datetime.now()
             return now <= end
         except (KeyError, ValueError):
-            return True
+            self.logger.warning("[TRADER] kill_zone_end missing/malformed — rejecting trade")
+            return False
+
+    # ------------------------------------------------------------------
+    # ATR helper (same formula as Analyse-Master)
+    # ------------------------------------------------------------------
+
+    def _atr(self, candles: List["OHLCData"], period: int = 14) -> float:
+        """Compute ATR from a list of OHLCData candles."""
+        if len(candles) < period + 1:
+            return 0.0
+        trs = [
+            max(
+                candles[i].high - candles[i].low,
+                abs(candles[i].high - candles[i - 1].close),
+                abs(candles[i].low  - candles[i - 1].close),
+            )
+            for i in range(1, len(candles))
+        ]
+        return sum(trs[-period:]) / period if len(trs) >= period else sum(trs) / max(len(trs), 1)
 
     # ------------------------------------------------------------------
     # Lower-timeframe entry confirmation
@@ -372,6 +414,9 @@ class TraderMaster(BaseAgent):
         - Position no longer found: record as closed (SL or TP3 trail)
         """
         POLL_INTERVAL = 60
+        TRAILING_STOP_PIPS = 10   # pips to trail behind the running high/low
+        MAX_CONSECUTIVE_ERRORS = 10
+        consecutive_errors = 0
 
         while True:
             await asyncio.sleep(POLL_INTERVAL)
@@ -381,9 +426,19 @@ class TraderMaster(BaseAgent):
 
             try:
                 pos = await self.mt5_provider.get_position_by_ticket(execution.mt5_ticket)
+                consecutive_errors = 0  # reset on success
             except Exception as exc:
-                self.logger.warning("[MONITOR] ticket=%d poll error: %s",
-                                    execution.mt5_ticket, exc)
+                consecutive_errors += 1
+                self.logger.warning("[MONITOR] ticket=%d poll error %d/%d: %s",
+                                    execution.mt5_ticket, consecutive_errors,
+                                    MAX_CONSECUTIVE_ERRORS, exc)
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    self.logger.error(
+                        "[MONITOR] ticket=%d aborted after %d consecutive errors",
+                        execution.mt5_ticket, MAX_CONSECUTIVE_ERRORS,
+                    )
+                    self._monitor_tasks.pop(execution.mt5_ticket, None)
+                    return
                 continue
 
             if pos is None:
@@ -396,6 +451,7 @@ class TraderMaster(BaseAgent):
                     execution.mt5_ticket, execution.direction, execution.symbol,
                 )
                 self._record_trade_outcome(execution.p_and_l or 0.0)
+                self._monitor_tasks.pop(execution.mt5_ticket, None)
                 break
 
             current_price = float(pos.get("price_current", pos["price_open"]))
@@ -417,16 +473,24 @@ class TraderMaster(BaseAgent):
                         )
                         if ok:
                             execution.tp1_hit = True
-                            await self.mt5_provider.modify_sl(
+                            sl_ok = await self.mt5_provider.modify_sl(
                                 ticket = execution.mt5_ticket,
                                 symbol = execution.symbol,
                                 new_sl = execution.entry_price,   # move to break-even
                             )
-                            self.logger.info(
-                                "[MONITOR] TP1 hit — closed 50%% @ %.5f, SL → BE %.5f (ticket=%d)",
-                                execution.take_profit_1, execution.entry_price,
-                                execution.mt5_ticket,
-                            )
+                            if sl_ok:
+                                self.logger.info(
+                                    "[MONITOR] TP1 hit — closed 50%% @ %.5f, SL → BE %.5f (ticket=%d)",
+                                    execution.take_profit_1, execution.entry_price,
+                                    execution.mt5_ticket,
+                                )
+                            else:
+                                self.logger.error(
+                                    "[MONITOR] TP1 hit — closed 50%% @ %.5f but FAILED to move SL to BE "
+                                    "(ticket=%d). Remaining 50%% riding with ORIGINAL SL %.5f — manual review required.",
+                                    execution.take_profit_1, execution.mt5_ticket,
+                                    execution.stop_loss,
+                                )
 
             # ── TP2 check ──────────────────────────────────────────────
             elif not execution.tp2_hit:
@@ -446,11 +510,63 @@ class TraderMaster(BaseAgent):
                         )
                         if ok:
                             execution.tp2_hit = True
-                            self.logger.info(
-                                "[MONITOR] TP2 hit — closed 30%% @ %.5f (ticket=%d)",
-                                execution.take_profit_2, execution.mt5_ticket,
+                            # Initialise the trailing-stop state for the
+                            # remaining 20% of the position.
+                            execution.trail_high_water = current_price
+                            execution.trail_sl = self._calc_trail_sl(
+                                current_price, execution.direction, execution.symbol,
+                                TRAILING_STOP_PIPS,
                             )
-                            # Remaining 20% rides with trailing stop (set via MT5 terminal)
+                            self.logger.info(
+                                "[MONITOR] TP2 hit — closed 30%% @ %.5f; trailing 20%% with "
+                                "SL=%.5f (ticket=%d)",
+                                execution.take_profit_2, execution.trail_sl,
+                                execution.mt5_ticket,
+                            )
+                            # Don't return — keep monitoring the trailing 20%.
+
+            # ── Trailing stop on remaining 20% (after TP2) ─────────────
+            if execution.tp2_hit and execution.tp1_hit:
+                if execution.direction == "BUY":
+                    if current_price > (execution.trail_high_water or 0):
+                        execution.trail_high_water = current_price
+                    new_sl = self._calc_trail_sl(
+                        execution.trail_high_water, "BUY", execution.symbol,
+                        TRAILING_STOP_PIPS,
+                    )
+                    if new_sl > (execution.trail_sl or 0):
+                        ok = await self.mt5_provider.modify_sl(
+                            ticket=execution.mt5_ticket,
+                            symbol=execution.symbol,
+                            new_sl=new_sl,
+                        )
+                        if ok:
+                            execution.trail_sl = new_sl
+                            self.logger.info(
+                                "[MONITOR] Trailing SL raised → %.5f (ticket=%d)",
+                                new_sl, execution.mt5_ticket,
+                            )
+                else:  # SELL
+                    if execution.trail_high_water is None or current_price < execution.trail_high_water:
+                        execution.trail_high_water = current_price
+                    new_sl = self._calc_trail_sl(
+                        execution.trail_high_water, "SELL", execution.symbol,
+                        TRAILING_STOP_PIPS,
+                    )
+                    # For SELL, trail_sl is above price — new_sl < current means
+                    # tighten (lower) the SL as price falls.
+                    if execution.trail_sl is None or new_sl < execution.trail_sl:
+                        ok = await self.mt5_provider.modify_sl(
+                            ticket=execution.mt5_ticket,
+                            symbol=execution.symbol,
+                            new_sl=new_sl,
+                        )
+                        if ok:
+                            execution.trail_sl = new_sl
+                            self.logger.info(
+                                "[MONITOR] Trailing SL lowered → %.5f (ticket=%d)",
+                                new_sl, execution.mt5_ticket,
+                            )
 
     # ------------------------------------------------------------------
     # Main entry point
@@ -527,25 +643,27 @@ class TraderMaster(BaseAgent):
             )
             return None
 
-        active = [t for t in self.open_trades if t.status in ("PENDING", "OPEN")]
-        if len(active) >= effective_max_ct:
-            self.logger.warning(
-                "[TRADER-MASTER] Max concurrent trades (%d) reached — rejected",
-                effective_max_ct,
-            )
-            return None
+        async with self._trade_lock:
+            active = [t for t in self.open_trades if t.status in ("PENDING", "OPEN")]
+            if len(active) >= effective_max_ct:
+                self.logger.warning(
+                    "[TRADER-MASTER] Max concurrent trades (%d) reached — rejected",
+                    effective_max_ct,
+                )
+                return None
 
-        if self.daily_loss >= effective_max_dd:
-            self.logger.warning(
-                "[TRADER-MASTER] Daily drawdown %.1f%% ≥ limit %.1f%% — pausing",
-                self.daily_loss * 100, effective_max_dd * 100,
-            )
-            KillSwitch.pause(f"Daily drawdown {self.daily_loss*100:.1f}% exceeded")
-            return None
+            # ── Daily drawdown ─────────────────────────────────────────
+            if self.daily_loss >= effective_max_dd:
+                self.logger.warning(
+                    "[TRADER-MASTER] Daily drawdown %.1f%% ≥ limit %.1f%% — pausing",
+                    self.daily_loss * 100, effective_max_dd * 100,
+                )
+                KillSwitch.pause(f"Daily drawdown {self.daily_loss*100:.1f}% exceeded")
+                return None
 
-        if not self._within_kill_zone(trade_signal):
-            self.logger.warning("[TRADER-MASTER] Kill zone expired — rejected")
-            return None
+            if not self._within_kill_zone(trade_signal):
+                self.logger.warning("[TRADER-MASTER] Kill zone expired — rejected")
+                return None
 
         # ── Consecutive loss sizing adjustment ─────────────────────────
         # ext_risk_mult from Risk-Sentinel already incorporates consecutive-loss
@@ -589,6 +707,13 @@ class TraderMaster(BaseAgent):
             if live > 0:
                 balance = live
 
+        # ── Current ATR (for volatility-mode sizing) ───────────────────
+        current_atr: Optional[float] = None
+        if market_data:
+            h1 = market_data.get("1h", [])
+            if len(h1) >= 15:
+                current_atr = self._atr(h1, period=14)
+
         # ── Position size (user settings + Risk-Sentinel multiplier) ──
         raw_lots = self._lot_size(
             symbol,
@@ -597,8 +722,9 @@ class TraderMaster(BaseAgent):
             balance,
             risk_mult    = risk_mult,
             adjusted_pct = ext_adjusted_pct,
+            atr          = current_atr,
         )
-        lots = round(max(0.01, min(10.0, raw_lots)), 2)
+        lots = raw_lots  # _lot_size already clamps to instrument-specific min/max
 
         # ── Build execution record ─────────────────────────────────────
         signal_id = f"SIG-{uuid.uuid4().hex[:8].upper()}"
@@ -647,7 +773,17 @@ class TraderMaster(BaseAgent):
                 "[TRADER-MASTER] No MT5 provider — paper trade (signal %s)", signal_id
             )
 
-        self.open_trades.append(execution)
+        # ── Atomic append with re-check (prevents race after MT5 order) ──
+        async with self._trade_lock:
+            active = [t for t in self.open_trades if t.status in ("PENDING", "OPEN")]
+            if len(active) >= effective_max_ct:
+                self.logger.error(
+                    "[TRADER-MASTER] Race — concurrent limit (%d) exceeded after MT5 order. "
+                    "Ticket=%d placed but NOT tracked. Manual review required.",
+                    effective_max_ct, execution.mt5_ticket,
+                )
+                return None
+            self.open_trades.append(execution)
 
         self.logger.info(
             "[TRADER-MASTER] ✓ %s | %s | Session=%s | Entry=%.5f | SL=%.5f | "

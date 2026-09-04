@@ -225,16 +225,16 @@ class AnalyseMaster(BaseAgent):
         asr_high: Optional[float],
         asr_low:  Optional[float],
         current:  float,
-    ) -> bool:
+    ) -> Optional[bool]:
         """
-        Returns True if the current price position is consistent with the
-        expected Judas Swing direction relative to the Asian range.
+        Returns True/False if ASR data is available and price is aligned/misaligned
+        with the Judas Swing direction, or None if ASR data is unavailable.
 
         Bullish: price swept below ASR low → expect London rally
         Bearish: price swept above ASR high → expect London sell-off
         """
         if asr_high is None or asr_low is None:
-            return True   # no ASR data — do not penalise
+            return None   # no ASR data — signal must be rejected at call site
         if bias == "BULLISH":
             return current < asr_high     # in lower half or below ASR
         if bias == "BEARISH":
@@ -461,7 +461,7 @@ class AnalyseMaster(BaseAgent):
                 retest = ob_bot <= current_price <= ob_top + sl_buf
                 if broke and retest:
                     self.logger.debug("[ANALYSE] Bearish Breaker [%.5f–%.5f]", ob_bot, ob_top)
-                    return True, round(ob_bot, 5), round(ob_top, 5), curr.timestamp
+                    return True, round(ob_bot, 5), round(ob_top, 5), False, curr.timestamp
 
             elif bias == "BULLISH" and curr.close < curr.open:
                 move = sum(c.close - c.open for c in impulse if c.close > c.open)
@@ -473,9 +473,9 @@ class AnalyseMaster(BaseAgent):
                 retest = ob_bot - sl_buf <= current_price <= ob_top
                 if broke and retest:
                     self.logger.debug("[ANALYSE] Bullish Breaker [%.5f–%.5f]", ob_bot, ob_top)
-                    return True, round(ob_bot, 5), round(ob_top, 5), curr.timestamp
+                    return True, round(ob_bot, 5), round(ob_top, 5), False, curr.timestamp
 
-        return False, None, None, None
+        return False, None, None, False, None
 
     # ------------------------------------------------------------------
     # 3c. Fair Value Gap (FVG) — with minimum size filter
@@ -502,16 +502,16 @@ class AnalyseMaster(BaseAgent):
                 # Both min-size AND pip-threshold must pass
                 if gap_top > gap_bot + max(min_gap, pip_threshold):
                     self.logger.debug("[ANALYSE] Bullish FVG [%.5f–%.5f]", gap_bot, gap_top)
-                    return True, round(gap_bot, 5), round(gap_top, 5), candles[i].timestamp
+                    return True, round(gap_bot, 5), round(gap_top, 5), False, candles[i].timestamp
 
             elif bias == "BEARISH":
                 gap_top = prev.low
                 gap_bot = nxt.high
                 if gap_top > gap_bot + max(min_gap, pip_threshold):
                     self.logger.debug("[ANALYSE] Bearish FVG [%.5f–%.5f]", gap_bot, gap_top)
-                    return True, round(gap_bot, 5), round(gap_top, 5), candles[i].timestamp
+                    return True, round(gap_bot, 5), round(gap_top, 5), False, candles[i].timestamp
 
-        return False, None, None, None
+        return False, None, None, False, None
 
     # ------------------------------------------------------------------
     # 4. Pullback into zone (with freshness check)
@@ -552,49 +552,59 @@ class AnalyseMaster(BaseAgent):
 
     def _ote_entry(
         self,
-        bias:     str,
-        candles:  List[OHLCData],
-        zone_bot: float,
-        zone_top: float,
+        bias:        str,
+        candles:     List[OHLCData],
+        zone_bot:    float,
+        zone_top:    float,
+        zone_ts:     Optional[datetime] = None,
     ) -> Tuple[float, bool]:
         """
         Calculate the Optimal Trade Entry price using Fibonacci retracement.
 
         For a bullish setup:
-            - Find the swing low (A) and swing high (B) that created the move
+            - Find the impulse swing low (A) and high (B) that created the OB/FVG
             - OTE zone = 61.8%–79% retracement back from B toward A
             - Entry = ~70.5% level
+
+        If `zone_ts` is provided, derive the impulse from candles BEFORE that
+        timestamp (the swing that created the entry zone). Otherwise fall back
+        to the recent-20-candle window for backward compatibility.
 
         Returns (entry_price, ote_used).
         """
         if len(candles) < 10:
             return (zone_bot + zone_top) / 2.0, False
 
-        # Use zone as proxy for the OB/FVG range — derive the impulse swing
-        # from recent swing extremes in the candle window
-        recent = candles[-20:]
+        # ── Determine the impulse-swing window ─────────────────────────
+        if zone_ts is not None:
+            # Use candles strictly before the zone timestamp — the impulse
+            # that created the OB/FVG must be in the past relative to the zone.
+            impulse_candles = [c for c in candles if c.timestamp < zone_ts]
+            if len(impulse_candles) < 5:
+                # Not enough history — fall back to wider window
+                impulse_candles = candles[-20:]
+        else:
+            impulse_candles = candles[-20:]
+
+        if len(impulse_candles) < 2:
+            return (zone_bot + zone_top) / 2.0, False
+
+        swing_low  = min(c.low  for c in impulse_candles)
+        swing_high = max(c.high for c in impulse_candles)
+        if swing_high <= swing_low:
+            return (zone_bot + zone_top) / 2.0, False
+        move_size = swing_high - swing_low
+
         if bias == "BULLISH":
-            swing_low  = min(c.low  for c in recent)
-            swing_high = max(c.high for c in recent)
-            if swing_high <= swing_low:
-                return (zone_bot + zone_top) / 2.0, False
-            move_size = swing_high - swing_low
             # OTE entry = swing_high - (move_size * OTE_FIB_ENTRY)
             entry = swing_high - (move_size * OTE_FIB_ENTRY)
-            # Clamp to zone
-            entry = max(zone_bot, min(zone_top, entry))
-            return round(entry, 5), True
-
         else:  # BEARISH
-            swing_low  = min(c.low  for c in recent)
-            swing_high = max(c.high for c in recent)
-            if swing_high <= swing_low:
-                return (zone_bot + zone_top) / 2.0, False
-            move_size = swing_high - swing_low
             # OTE entry = swing_low + (move_size * OTE_FIB_ENTRY)
             entry = swing_low + (move_size * OTE_FIB_ENTRY)
-            entry = max(zone_bot, min(zone_top, entry))
-            return round(entry, 5), True
+
+        # Clamp to zone
+        entry = max(zone_bot, min(zone_top, entry))
+        return round(entry, 5), True
 
     # ------------------------------------------------------------------
     # Trade level calculation
@@ -627,7 +637,7 @@ class AnalyseMaster(BaseAgent):
             tp2 = entry - risk * 2.0
             tp3 = entry - risk * 3.0
 
-        rr = risk / max(risk, 0.00001) * 2.0   # always 2.0 (TP2 = 2R)
+        rr = (tp2 - entry) / risk if risk > 0 else 2.0   # actual R:R ratio (TP2 = 2R)
         return sl, tp1, tp2, tp3, rr
 
     # ------------------------------------------------------------------
@@ -873,6 +883,9 @@ class AnalyseMaster(BaseAgent):
         asr_high, asr_low = self._asian_session_range(h1_candles)
         current_price     = h1_candles[-1].close
         asr_aligned       = self._asr_directional_bias(bias, asr_high, asr_low, current_price)
+        if asr_aligned is None:
+            self.logger.info("[ANALYSE-MASTER] No ASR data available — rejecting signal")
+            return None
         if not asr_aligned:
             self.logger.info("[ANALYSE-MASTER] ASR context misaligned — signal penalty applied")
 
@@ -994,7 +1007,12 @@ class AnalyseMaster(BaseAgent):
             return None
 
         # ── 10. OTE Fibonacci entry (preferred over zone midpoint) ─────
-        entry, ote_used = self._ote_entry(bias, h1_candles, zone_bot, zone_top)
+        # Use zone_candle_ts (when the OB/FVG formed) to anchor the impulse
+        # swing calculation, instead of the global recent-20-candle window.
+        entry, ote_used = self._ote_entry(
+            bias, h1_candles, zone_bot, zone_top,
+            zone_ts=zone_candle_ts,
+        )
 
         # ── 11. Trade levels ───────────────────────────────────────────
         sl, tp1, tp2, tp3, rr = self._trade_levels(bias, entry, zone_bot, zone_top, symbol)

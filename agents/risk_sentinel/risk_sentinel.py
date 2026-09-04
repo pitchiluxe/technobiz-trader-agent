@@ -176,11 +176,17 @@ class RiskSentinel(BaseAgent):
             RiskAssessment with approved flag and composite risk_multiplier.
         """
         if not RiskSettingsManager.get().auto_risk_management:
-            # Risk management disabled by user — allow with full size
+            # Risk management disabled by user — log CRITICAL and enforce 50% size
             s = RiskSettingsManager.get()
+            self.logger.critical(
+                "[RISK-SENTINEL] ⚠️ auto_risk_management is DISABLED — "
+                "circuit breakers (drawdown, concurrent-limit) still active; "
+                "position size reduced to 50%%"
+            )
             return RiskAssessment(
-                approved=True, risk_multiplier=1.0,
-                adjusted_risk_pct=s.risk_pct, warnings=["Auto risk management disabled"],
+                approved=True, risk_multiplier=0.5,
+                adjusted_risk_pct=s.risk_pct * 0.5,
+                warnings=["⚠️ Auto risk management disabled — size capped at 50%"],
             )
 
         s         = RiskSettingsManager.get()

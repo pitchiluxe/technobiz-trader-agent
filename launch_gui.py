@@ -55,7 +55,7 @@ def start_electron() -> subprocess.Popen:
         subprocess.run([npm_cmd, "install"], cwd=str(GUI_DIR), check=True)
 
     proc = subprocess.Popen(
-        [npm_cmd, "run", "electron"],
+        [npm_cmd, "run", "start"],
         cwd=str(GUI_DIR),
     )
     return proc

@@ -212,6 +212,17 @@ class TradingWorkflow:
             regime: Optional[MarketRegimeReport] = pre.get("regime")
             bt:     Optional[BacktestSummary]    = pre.get("backtest")
 
+            # ── Step 0: Verify required timeframes are present ────────
+            required_tfs = {"daily", "4h", "1h"}
+            present_tfs  = set(market_data.keys())
+            missing_tfs  = required_tfs - present_tfs
+            if missing_tfs:
+                logger.error(
+                    "[STEP 0] Missing required timeframes: %s — aborting cycle",
+                    sorted(missing_tfs),
+                )
+                return None
+
             # ── Step 1: Trend-Master ───────────────────────────────────
             logger.info("[STEP 1] Trend-Master — macro bias identification")
             trend_report = await self.trend_master.analyze(market_data)

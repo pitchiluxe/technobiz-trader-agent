@@ -216,9 +216,9 @@ class WorkflowOrchestrator:
         Returns:
             New WorkflowState instance
         """
-        logger.info(f"\n{'═' * 70}")
-        logger.info(f"[ORCHESTRATOR] STARTING NEW TRADING CYCLE")
-        logger.info(f"{'═' * 70}")
+        logger.info("═" * 70)
+        logger.info("[ORCHESTRATOR] STARTING NEW TRADING CYCLE")
+        logger.info("═" * 70)
 
         if self.current_workflow and not self.current_workflow.is_complete():
             warning = (

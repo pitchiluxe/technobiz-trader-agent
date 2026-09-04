@@ -25,8 +25,8 @@ class Settings:
     ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
     DEBUG = ENVIRONMENT != "production" and os.getenv("DEBUG", "False").lower() == "true"
 
-    # AI Provider — openrouter | claude | ollama
-    AI_PROVIDER = os.getenv("AI_PROVIDER", "openrouter").lower()
+    # AI Provider — openrouter | claude | ollama (default: ollama = free local models)
+    AI_PROVIDER = os.getenv("AI_PROVIDER", "ollama").lower()
 
     # AI Configuration — OpenRouter / Anthropic direct
     ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "")           # e.g. https://openrouter.ai/api

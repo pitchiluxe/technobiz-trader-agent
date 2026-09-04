@@ -5606,7 +5606,14 @@
         function appendStatus(line) {
             const body = document.getElementById('statusBody');
             if (!body) return;
-            body.innerHTML += '<br>' + line;
+            // Sanitise: allow <b> and </b> tags (intentional formatting),
+            // strip any other HTML tags. This defends against XSS via
+            // untrusted SSE data (signal IDs, agent names, error reasons).
+            const sanitised = String(line).replace(
+                /<(?!\/?b>)/gi,
+                '&lt;'
+            );
+            body.insertAdjacentHTML('beforeend', '<br>' + sanitised);
         }
 
         function ensureEventStream() {

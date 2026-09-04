@@ -424,7 +424,9 @@ class HybridDataProvider:
                 price = self.mt5.get_current_price(symbol)
                 if price:
                     result["current_price"] = price
-            except:
-                pass
+            except (RuntimeError, OSError, Exception) as exc:
+                # OSError catches connection errors; RuntimeError for sync-call misuse.
+                # Explicit list prevents catching SystemExit/KeyboardInterrupt.
+                logger.warning("[TV] MT5 price fetch failed for %s: %s", symbol, exc)
         
         return result

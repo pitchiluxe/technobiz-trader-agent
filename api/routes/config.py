@@ -207,11 +207,79 @@ class InterpretRequest(BaseModel):
 @router.post("/claude/interpret")
 async def claude_interpret(body: InterpretRequest):
     """
-    Pass user free-text command through Claude to get:
+    Pass user free-text command through AI to get:
     - Structured agent action (symbol, timeframes, parameters)
     - Market insight / explanation
+
+    Supports three providers (controlled by AI_PROVIDER env var):
+      ollama    — local free models (default, no API key needed)
+      openrouter — cloud models via OpenRouter
+      claude    — Anthropic direct
     """
-    # Prefer env-based keys (OpenRouter / Anthropic) over stored credential
+    ai_provider = os.getenv("AI_PROVIDER", "ollama").lower()
+
+    # Build the system prompt
+    system_prompt = (
+        "You are TechnobizTrader's AI assistant. "
+        "You translate trader instructions into structured JSON actions for the agents. "
+        "The system uses ICT methodology (Liquidity Sweep, Break of Structure, Imbalance/Order Block, Pullback). "
+        "Always respond with valid JSON in this format:\n"
+        '{"action": "<analyze|execute|reset>", "symbol": "<PAIR>", '
+        '"timeframes": ["1d","4h","1h"], "insight": "<brief market insight>", '
+        '"instructions": "<what the agent should do>"}'
+    )
+    context_hints = {
+        "trend_master": "The user is talking to Trend-Master who analyzes macro trends.",
+        "analyse_master": "The user is talking to Analyse-Master who detects ICT patterns and generates signals.",
+        "trader_master": "The user is talking to Trader-Master who executes trades with risk management.",
+    }
+    full_system = system_prompt + "\n\n" + context_hints.get(body.agent_context, "")
+
+    # ── Ollama (local, free — default) ───────────────────────────────────────
+    if ai_provider == "ollama":
+        import httpx
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+        model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": full_system},
+                        {"role": "user",   "content": body.command},
+                    ],
+                    "max_tokens": 512,
+                    "stream": False,
+                }
+                r = await client.post(f"{base_url}/v1/chat/completions", json=payload)
+                if r.status_code != 200:
+                    logger.warning("[AI/Ollama] HTTP %d: %s", r.status_code, r.text[:200])
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"Ollama returned {r.status_code}. Is the model '{model}' installed? Run: ollama pull {model}",
+                    )
+                data = r.json()
+                raw = data["choices"][0]["message"]["content"].strip()
+        except httpx.ConnectError:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Ollama is not running. Start it with: ollama serve\n"
+                    "Or install a model: ollama pull qwen2.5:7b"
+                ),
+            )
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=504,
+                detail="Ollama request timed out. Try a smaller model or restart Ollama.",
+            )
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            parsed = {"action": "analyze", "symbol": "EURUSD", "insight": raw, "instructions": raw}
+        return {"success": True, "result": parsed}
+
+    # ── OpenRouter / Anthropic (cloud) ───────────────────────────────────────
     creds = _load_credentials()
     api_key = (
         os.getenv("ANTHROPIC_AUTH_TOKEN") or
@@ -225,7 +293,6 @@ async def claude_interpret(body: InterpretRequest):
             detail="AI API key not configured. Set ANTHROPIC_AUTH_TOKEN in .env.local",
         )
 
-    # Lazy import — anthropic is optional; backend must start even if not installed
     try:
         import anthropic as _anthropic
     except ImportError:
@@ -243,26 +310,10 @@ async def claude_interpret(body: InterpretRequest):
             client_kwargs["base_url"] = base_url
         client = _anthropic.Anthropic(**client_kwargs)
 
-        system_prompt = (
-            "You are TechnobizTrader's AI assistant. "
-            "You translate trader instructions into structured JSON actions for the agents. "
-            "The system uses ICT methodology (Liquidity Sweep, Break of Structure, Imbalance/Order Block, Pullback). "
-            "Always respond with valid JSON in this format:\n"
-            '{"action": "<analyze|execute|reset>", "symbol": "<PAIR>", '
-            '"timeframes": ["1d","4h","1h"], "insight": "<brief market insight>", '
-            '"instructions": "<what the agent should do>"}'
-        )
-
-        context_hints = {
-            "trend_master": "The user is talking to Trend-Master who analyzes macro trends.",
-            "analyse_master": "The user is talking to Analyse-Master who detects ICT patterns and generates signals.",
-            "trader_master": "The user is talking to Trader-Master who executes trades with risk management.",
-        }
-
         response = client.messages.create(
             model=model,
             max_tokens=512,
-            system=system_prompt + "\n\n" + context_hints.get(body.agent_context, ""),
+            system=full_system,
             messages=[{"role": "user", "content": body.command}],
         )
 

@@ -154,17 +154,27 @@ class MT5Provider(DataProvider):
             logger.warning("[MT5] No data for %s %s: %s", symbol, timeframe, mt5.last_error())
             return []
 
-        candles = [
-            OHLCData(
+        candles = []
+        for r in rates:
+            high = float(r["high"])
+            low  = float(r["low"])
+            c    = float(r["close"])
+            o    = float(r["open"])
+            # Validate OHLC integrity: high ≥ low, high ≥ open/close, low ≤ open/close
+            if high < low or high < o or high < c or low > o or low > c:
+                logger.warning(
+                    "[MT5] Corrupted candle rejected %s %s: O=%.5f H=%.5f L=%.5f C=%.5f",
+                    symbol, timeframe, o, high, low, c,
+                )
+                continue
+            candles.append(OHLCData(
                 timestamp   = datetime.fromtimestamp(int(r["time"])),
-                open_price  = float(r["open"]),
-                high_price  = float(r["high"]),
-                low_price   = float(r["low"]),
-                close_price = float(r["close"]),
+                open_price  = o,
+                high_price  = high,
+                low_price   = low,
+                close_price = c,
                 volume      = float(r["tick_volume"]),
-            )
-            for r in rates
-        ]
+            ))
 
         # ── Staleness check ────────────────────────────────────────────
         if candles:
@@ -238,12 +248,41 @@ class MT5Provider(DataProvider):
         ]
 
     async def get_position_by_ticket(self, ticket: int) -> Optional[Dict[str, Any]]:
-        """Return a single position dict by MT5 ticket, or None."""
-        positions = await self.get_open_positions()
-        for p in positions:
-            if p["ticket"] == ticket:
-                return p
-        return None
+        """Return a single position dict by MT5 ticket, or None.
+
+        Uses mt5.positions_get(ticket=...) for O(1) lookup instead of
+        scanning all positions. Falls back to full scan if the direct
+        query is not supported by the active MT5 build.
+        """
+        if not self._connected:
+            return None
+        async with self._lock:
+            try:
+                positions = await asyncio.to_thread(mt5.positions_get, ticket=ticket)
+            except (TypeError, AttributeError):
+                # Older MT5 builds may not accept the ticket kwarg
+                positions = None
+        if positions is None:
+            # Fallback: scan all positions
+            all_pos = await self.get_open_positions()
+            for p in all_pos:
+                if p["ticket"] == ticket:
+                    return p
+            return None
+        if not positions:
+            return None
+        p = positions[0]
+        return {
+            "ticket":      p.ticket,
+            "symbol":      p.symbol,
+            "type":        "BUY" if p.type == 0 else "SELL",
+            "volume":      p.volume,
+            "price_open":  p.price_open,
+            "sl":          p.sl,
+            "tp":          p.tp,
+            "magic":       p.magic,
+            "profit":      p.profit,
+        }
 
     # ------------------------------------------------------------------
     # Symbol helpers

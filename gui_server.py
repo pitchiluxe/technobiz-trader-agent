@@ -103,6 +103,14 @@ _RL_LIMITS: dict[str, int] = {
 }
 _rl_buckets: dict[str, list[float]] = defaultdict(list)
 
+
+def _mask_account(account: str) -> str:
+    """Mask all but the last 4 digits of an account number."""
+    if not account or len(account) <= 4:
+        return "****"
+    return "*" * (len(account) - 4) + account[-4:]
+
+
 def _rate_ok(path: str, client_ip: str) -> bool:
     limit = _RL_LIMITS.get(path)
     if limit is None:
@@ -115,6 +123,20 @@ def _rate_ok(path: str, client_ip: str) -> bool:
         return False
     _rl_buckets[key].append(now)
     return True
+
+
+def _rl_cleanup() -> None:
+    """Remove stale entries from the rate-limit bucket dict.
+
+    Called on shutdown to prevent unbounded memory growth from IPs that
+    connected once and never returned.
+    """
+    now = time.monotonic()
+    stale = [k for k, v in _rl_buckets.items() if all(now - t >= _RL_WINDOW for t in v)]
+    for k in stale:
+        del _rl_buckets[k]
+    if stale:
+        logger.debug("[RL] Cleaned up %d stale rate-limit entries", len(stale))
 
 
 # ── Pydantic models ──────────────────────────────────────────────────────────
@@ -134,6 +156,11 @@ class CredentialsRequest(BaseModel):
     api_key: Optional[str]       = None
     model: Optional[str]         = None   # openrouter / ollama model selection
     base_url: Optional[str]      = None   # ollama base URL
+
+
+class AIInterpretRequest(BaseModel):
+    command:      str
+    agent_context: str = "trend_master"  # "trend_master" | "analyse_master" | "trader_master"
 
 
 # ── Application state ────────────────────────────────────────────────────────
@@ -562,7 +589,10 @@ async def _run_cycle(symbol: str) -> None:
 
     except Exception as exc:
         logger.error("[CYCLE] Unhandled error for %s: %s", symbol, exc, exc_info=True)
-        await state.emit("cycle_failed", {"reason": str(exc)})
+        await state.emit("cycle_failed", {
+            "reason": str(exc),
+            "hint": "Retry by clicking START CYCLE again. If the error persists, check the server logs.",
+        })
     finally:
         state.cycle_running = False
         # ── Drawdown monitoring alert ──────────────────────────────────────
@@ -677,6 +707,7 @@ async def lifespan(app: FastAPI):
 
     if state.provider:
         await state.provider.disconnect()
+    _rl_cleanup()
     db_manager.close()
     logger.info("[SHUTDOWN] Complete")
 
@@ -1036,12 +1067,12 @@ async def credentials_status():
             else os.getenv("ANTHROPIC_MODEL", "")
         ),
         "ollama_base_url":        os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-        # MT5 / MT4
+        # MT5 / MT4 (account numbers masked — only last 4 digits visible)
         "mt5_configured":         bool(os.getenv("MT5_ACCOUNT", "").strip()),
-        "mt5_account":            os.getenv("MT5_ACCOUNT",  ""),
+        "mt5_account":            _mask_account(os.getenv("MT5_ACCOUNT", "")),
         "mt5_server":             os.getenv("MT5_SERVER",   ""),
         "mt4_configured":         bool(os.getenv("MT4_ACCOUNT", "").strip()),
-        "mt4_account":            os.getenv("MT4_ACCOUNT",  ""),
+        "mt4_account":            _mask_account(os.getenv("MT4_ACCOUNT", "")),
         "mt4_server":             os.getenv("MT4_SERVER",   ""),
         "tradingview_configured": bool(os.getenv("TRADINGVIEW_USERNAME", "").strip()),
         "tradingview_username":   os.getenv("TRADINGVIEW_USERNAME", ""),
@@ -1131,6 +1162,137 @@ async def get_ollama_models():
         "base_url": base_url,
         "note": "Ollama not running — showing suggested models. Start Ollama and click Refresh.",
     }
+
+
+@app.post("/api/ai/interpret")
+async def ai_interpret(body: AIInterpretRequest):
+    """
+    Pass user free-text command through AI to get:
+    - Structured agent action (symbol, timeframes, parameters)
+    - Market insight / explanation
+
+    Supports:
+      ollama    — local free models (default, no API key needed)
+      openrouter — cloud models via OpenRouter
+      claude    — Anthropic direct
+    """
+    import json as _json
+
+    ai_provider = os.getenv("AI_PROVIDER", "ollama").lower()
+
+    # System prompt
+    system_prompt = (
+        "You are TechnobizTrader's AI assistant. "
+        "You translate trader instructions into structured JSON actions. "
+        "The system uses ICT methodology (Liquidity Sweep, Break of Structure, "
+        "Imbalance/Order Block, Pullback). "
+        'Always respond with valid JSON: '
+        '{"action": "<analyze|execute|reset>", "symbol": "<PAIR>", '
+        '"timeframes": ["1d","4h","1h"], '
+        '"insight": "<brief market insight>", '
+        '"instructions": "<what the agent should do>"}'
+    )
+    context_hints = {
+        "trend_master": "The user is talking to Trend-Master who analyzes macro trends.",
+        "analyse_master": "The user is talking to Analyse-Master who detects ICT patterns.",
+        "trader_master": "The user is talking to Trader-Master who executes trades.",
+    }
+    full_system = system_prompt + "\n\n" + context_hints.get(body.agent_context, "")
+
+    # ── Ollama (local, free — default) ─────────────────────────────────────
+    if ai_provider == "ollama":
+        import httpx
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+        model    = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": full_system},
+                        {"role": "user",   "content": body.command},
+                    ],
+                    "max_tokens": 512,
+                    "stream": False,
+                }
+                r = await client.post(f"{base_url}/v1/chat/completions", json=payload)
+                if r.status_code != 200:
+                    logger.warning("[AI/Ollama] HTTP %d: %s", r.status_code, r.text[:200])
+                    raise HTTPException(
+                        status_code=502,
+                        detail=(
+                            f"Ollama returned {r.status_code}. "
+                            f"Is model '{model}' installed? Run: ollama pull {model}"
+                        ),
+                    )
+                raw = r.json()["choices"][0]["message"]["content"].strip()
+        except httpx.ConnectError:
+            raise HTTPException(
+                status_code=503,
+                detail="Ollama is not running. Start with: ollama serve",
+            )
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=504,
+                detail="Ollama request timed out. Try a smaller model.",
+            )
+        try:
+            parsed = _json.loads(raw)
+        except _json.JSONDecodeError:
+            parsed = {"action": "analyze", "symbol": "EURUSD",
+                      "insight": raw, "instructions": raw}
+        return {"success": True, "result": parsed}
+
+    # ── OpenRouter / Anthropic (cloud) ────────────────────────────────────
+    creds = _load_credentials()
+    api_key = (
+        os.getenv("ANTHROPIC_AUTH_TOKEN") or
+        os.getenv("ANTHROPIC_API_KEY") or
+        creds.get("claude_api_key") or
+        os.getenv("CLAUDE_API_KEY", "")
+    )
+    if not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="AI API key not configured. Set ANTHROPIC_AUTH_TOKEN in .env.local",
+        )
+
+    try:
+        import anthropic as _anthropic
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="anthropic package not installed. Run: pip install anthropic>=0.25.0",
+        )
+
+    base_url = os.getenv("ANTHROPIC_BASE_URL") or None
+    model    = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+
+    try:
+        kwargs = {"api_key": api_key}
+        if base_url:
+            kwargs["base_url"] = base_url
+        client = _anthropic.Anthropic(**kwargs)
+        response = client.messages.create(
+            model=model,
+            max_tokens=512,
+            system=full_system,
+            messages=[{"role": "user", "content": body.command}],
+        )
+        raw = response.content[0].text.strip()
+        try:
+            parsed = _json.loads(raw)
+        except _json.JSONDecodeError:
+            parsed = {"action": "analyze", "symbol": "EURUSD",
+                      "insight": raw, "instructions": raw}
+        return {"success": True, "result": parsed}
+    except _anthropic.AuthenticationError:
+        raise HTTPException(status_code=401, detail="Invalid API key.")
+    except _anthropic.APIConnectionError:
+        raise HTTPException(status_code=503, detail="Could not reach AI provider.")
+    except Exception:
+        logger.exception("[AI] Interpretation failed")
+        raise HTTPException(status_code=500, detail="AI interpretation failed.")
 
 
 @app.post("/api/telegram/test")

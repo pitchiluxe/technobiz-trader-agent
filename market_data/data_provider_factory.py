@@ -94,39 +94,39 @@ def get_data_provider_info() -> dict:
     return info
 
 
-def validate_data_provider() -> bool:
+async def validate_data_provider() -> bool:
     """
     Validate that the data provider can be initialized and is accessible.
-    
+
     Returns:
         True if validation passed, False otherwise
     """
     try:
         provider = create_data_provider()
-        
+
         # Test connection based on provider type
         if isinstance(provider, MT5Provider):
             logger.info("Validating MT5 connection...")
-            is_valid = provider.is_connected()
-        
+            is_valid = await provider.is_connected()
+
         elif isinstance(provider, TradingViewProvider):
             logger.info("Validating TradingView connection...")
-            is_valid = provider.test_connection()
-        
+            is_valid = await provider.test_connection()
+
         elif isinstance(provider, HybridDataProvider):
             logger.info("Validating Hybrid provider...")
             # Test both components
             tv_valid = True
             mt5_valid = True
-            
+
             if provider.tradingview:
-                tv_valid = provider.tradingview.test_connection()
-            
+                tv_valid = await provider.tradingview.test_connection()
+
             if provider.mt5:
-                mt5_valid = provider.mt5.is_connected()
-            
+                mt5_valid = await provider.mt5.is_connected()
+
             is_valid = tv_valid or mt5_valid
-        
+
         else:
             is_valid = False
         
@@ -144,20 +144,21 @@ def validate_data_provider() -> bool:
 
 if __name__ == "__main__":
     """Test the data provider factory"""
-    
+    import asyncio
+
     # Enable debug logging
     logging.basicConfig(level=logging.DEBUG)
-    
+
     # Get provider info
     info = get_data_provider_info()
     print("\nData Provider Configuration:")
     for key, value in info.items():
         print(f"  {key}: {value}")
-    
+
     # Validate provider
     print("\nValidating data provider...")
-    is_valid = validate_data_provider()
-    
+    is_valid = asyncio.run(validate_data_provider())
+
     if is_valid:
         # Try to create provider
         print("\nCreating data provider...")

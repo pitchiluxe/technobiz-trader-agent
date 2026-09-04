@@ -11,6 +11,7 @@ import logging
 import os
 import secrets
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 import uvicorn
@@ -151,7 +152,7 @@ async def websocket_endpoint(websocket: WebSocket):
 # ─────────────────────────────────────────────────────────────────────────────
 def _serve_html(filename: str) -> HTMLResponse:
     path = os.path.join(_PROJECT_ROOT, filename)
-    html = open(path, encoding="utf-8").read()
+    html = Path(path).read_text(encoding="utf-8")
     injection = f'<script>window.__GUI_TOKEN__="{_GUI_SECRET}";</script>'
     html = html.replace("</head>", injection + "\n</head>", 1)
     return HTMLResponse(html)
