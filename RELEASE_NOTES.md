@@ -34,10 +34,9 @@
 
 ## Verifying the Download
 
-SHA-256 checksum for the Windows installer zip:
+SHA-256 checksum for the Windows installer exe (`TechnobizTrader-Setup-1.0.0.exe`):
 
 ```powershell
-# Verify the downloaded exe:
 Get-FileHash TechnobizTrader-Setup-1.0.0.exe -Algorithm SHA256
 
 # Expected:
