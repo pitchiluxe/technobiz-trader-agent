@@ -40,7 +40,7 @@ SHA-256 checksum for the Windows installer exe (`TechnobizTrader-Setup-1.0.0.exe
 Get-FileHash TechnobizTrader-Setup-1.0.0.exe -Algorithm SHA256
 
 # Expected:
-# ABDDE66C3940BADD343580DFC9DA913B0B3C004B545C598CA0C0E9179F039356
+# BFEEE821D05495496FCDC9E67EF6AAFC70D341982ED1C184B50504A9D41CA746
 
 # Then verify the contained exe:
 cd .\TechnobizTrader\

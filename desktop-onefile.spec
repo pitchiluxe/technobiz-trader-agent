@@ -24,6 +24,9 @@ hidden_imports = [
     "uvicorn", "uvicorn.config", "uvicorn.server", "uvicorn.structures",
     "sse_starlette", "sse_starlette.sse",
     "python_multipart", "multipart",
+    # Python 3.14 ctypes._layout is a new internal module PyInstaller 6.17 misses
+    "ctypes._layout",
+    "ctypes._endian",
     "agents.base_agent",
     "agents.trend_master.trend_master",
     "agents.analyse_master.analyse_master",
@@ -45,6 +48,21 @@ hidden_imports = [
     "mt5_py", "MetaTrader5",
 ]
 
+# Exclude modules that bloat the bundle and aren't used by the app.
+# matplotlib is the main culprit — it pulls in tkinter (which crashes on
+# Windows PyInstaller when TCL/TK data files aren't present), numpy extras,
+# and ~80MB of plotting code we don't use.
+excludes = [
+    "matplotlib",
+    "tkinter",
+    "scipy",
+    "sklearn",
+    "torch",
+    "tensorflow",
+    "pandas.plotting",
+    "numpy.testing",
+]
+
 a = Analysis(
     [str(ROOT / "desktop_launcher.py")],
     pathex=[str(ROOT)],
@@ -58,8 +76,15 @@ a = Analysis(
         (str(ROOT / "utils"),   "utils"),
         (str(ROOT / "api"),     "api"),
         (str(ROOT / ".env.template"), "."),
+        # Tcl/Tk data for tkinter (matplotlib may still load it)
+        (sys.prefix + "/tcl", "tcl"),
+        (sys.prefix + "/tcl/tcl8.6", "tcl/tcl8.6"),
+        (sys.prefix + "/tcl/tk8.6", "tcl/tk8.6"),
+        # pkg_resources / setuptools data
+        (sys.prefix + "/Lib/site-packages/setuptools/_vendor/jaraco/text", "setuptools/_vendor/jaraco/text"),
     ],
     hiddenimports=hidden_imports,
+    excludes=excludes,
     hookspath=[],
     hooksconfig={},
     keys=[],
