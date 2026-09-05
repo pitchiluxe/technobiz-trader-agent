@@ -64,6 +64,16 @@ def main() -> int:
     print("=" * 64)
     print()
 
+    # --headless  → start backend, do NOT open a browser (used by the
+    #               Windows service and the Start Menu shortcut).
+    # --open      → start backend and open the dashboard in the default
+    #               browser (used by the "Open Dashboard" shortcut).
+    # Default     → start backend, do NOT open a browser. The user
+    #               opens the dashboard from the Start Menu shortcut.
+    args = sys.argv[1:]
+    headless = "--headless" in args
+    open_browser = ("--open" in args) or (not headless and os.getenv("TECHNOBIZTRADER_OPEN_BROWSER", "0") == "1")
+
     if _port_in_use(PORT):
         print(f"[launcher] Port {PORT} already in use — assuming server is running")
     else:
@@ -84,15 +94,19 @@ def main() -> int:
 
     url = f"http://{HOST}:{PORT}/"
     if _wait_for_server(url, timeout=30):
-        print(f"[launcher] Backend ready — opening browser at {url}")
-        try:
-            webbrowser.open(url)
-        except Exception as exc:
-            print(f"[launcher] Could not open browser: {exc}")
-            print(f"[launcher] Open {url} manually in your browser.")
+        print(f"[launcher] Backend ready on {url}")
+        if open_browser:
+            try:
+                webbrowser.open(url)
+                print(f"[launcher] Opened browser at {url}")
+            except Exception as exc:
+                print(f"[launcher] Could not open browser: {exc}")
+        else:
+            print(f"[launcher] Headless mode — dashboard is running. Use the")
+            print(f"             Start Menu shortcut to open it in a browser.")
     else:
         print("[launcher] Backend did not become ready in 30s.")
-        print(f"[launcher] Try opening {url} manually in a few seconds.")
+        print(f"[launcher] Open {url} manually in your browser once it's ready.")
         return 1
 
     print()

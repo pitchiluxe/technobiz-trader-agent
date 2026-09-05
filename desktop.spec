@@ -49,6 +49,9 @@ hidden_imports = [
     "multipart",
     # GUI
     "pydantic",
+    # Python 3.14 ctypes._layout is a new internal module PyInstaller 6.17 misses
+    "ctypes._layout",
+    "ctypes._endian",
     # Agents & core
     "agents.base_agent",
     "agents.trend_master.trend_master",
@@ -114,6 +117,12 @@ a = Analysis(
         (str(ROOT / "api"),     "api"),
         # .env templates
         (str(ROOT / ".env.template"), "."),
+        # Tcl/Tk data for tkinter (matplotlib may still load it)
+        (sys.prefix + "/tcl", "tcl"),
+        (sys.prefix + "/tcl/tcl8.6", "tcl/tcl8.6"),
+        (sys.prefix + "/tcl/tk8.6", "tcl/tk8.6"),
+        # pkg_resources / setuptools data
+        (sys.prefix + "/Lib/site-packages/setuptools/_vendor/jaraco/text", "setuptools/_vendor/jaraco/text"),
     ],
     hiddenimports=hidden_imports,
     hookspath=[],
@@ -125,6 +134,18 @@ a = Analysis(
     bootloader_ignore_signals=False,
     strip=False,
     upx_exclude=[],
+    # The app never uses tkinter or matplotlib — exclude them so the
+    # pyi_rth__tkinter runtime hook is never triggered at startup.
+    excludes=[
+        "matplotlib",
+        "tkinter",
+        "tkinter.constants",
+        "tkinter.dialog",
+        "tkinter.filedialog",
+        "tkinter.messagebox",
+        "tkinter.scrolledtext",
+        "tkinter.simpledialog",
+    ],
     console=True,      # show console window so users can see logs
     disable_windowed_traceback=False,
     argv_emulation=False,

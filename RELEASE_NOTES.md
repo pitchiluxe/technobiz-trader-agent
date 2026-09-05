@@ -7,21 +7,26 @@
 ## What's included
 
 ### Desktop Application
-- **TechnobizTrader.exe** — One-click launcher for Windows. Starts the backend server and opens the trading office UI in your browser.
+- **Windows Installer** — installs to `C:\Program Files\TechnobizTrader` with Start Menu shortcuts.
+- `TechnobizTrader` shortcut starts the server silently (no browser popup).
+- `Open Dashboard` shortcut starts the server and opens the trading office UI.
 - Bundled Python 3.14 runtime — no Python installation required on the host machine.
 
 ### System Requirements
-- Windows 10 or Windows 11
+- Windows 10 or Windows 11 (64-bit)
 - 4 GB available RAM
 - Internet connection for live market data
+- Admin rights required during installation
 - MetaTrader 5 (optional — runs in demo mode without it)
 
 ## Installation
 
 1. Download `TechnobizTrader-Setup-1.0.0.exe` from this release page.
-2. Run the installer — no admin rights needed.
-3. Launch from the Start menu or desktop shortcut.
-4. On first run, open **Settings** to connect MetaTrader 5 or enter your API credentials.
+2. Run the installer — requires Windows admin rights.
+3. Choose the install location (default: `C:\Program Files\TechnobizTrader`).
+4. Launch from the **Start Menu** (`TechnobizTrader` starts the server silently;
+   `Open Dashboard` starts the server and opens the browser).
+5. On first run, open **Settings** to connect MetaTrader 5 or enter your API credentials.
 
 ## Key Features in This Release
 
@@ -40,7 +45,7 @@ SHA-256 checksum for the Windows installer exe (`TechnobizTrader-Setup-1.0.0.exe
 Get-FileHash TechnobizTrader-Setup-1.0.0.exe -Algorithm SHA256
 
 # Expected:
-# D5CCCF493283CC2ECA0F4E79454E4A8C69343958395BF0F0F985BFFAABFFBB14
+# E2AFF6B8908787167438A3499F3542523F3347518D87A1B5D89831165B2AD7AC
 
 # Then verify the contained exe:
 cd .\TechnobizTrader\
