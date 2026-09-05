@@ -37,11 +37,11 @@
 SHA-256 checksum for the Windows installer zip:
 
 ```powershell
-# Verify the downloaded zip:
-Get-FileHash TechnobizTrader-v1.0.0.zip -Algorithm SHA256
+# Verify the downloaded exe:
+Get-FileHash TechnobizTrader-Setup-1.0.0.exe -Algorithm SHA256
 
 # Expected:
-# AA2EE2AF6414ECD36DDDABE4B5F9E55B09FDFD4D2F6B61314758207E2536DA2A
+# ABDDE66C3940BADD343580DFC9DA913B0B3C004B545C598CA0C0E9179F039356
 
 # Then verify the contained exe:
 cd .\TechnobizTrader\
