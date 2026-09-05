@@ -834,11 +834,25 @@ async def root():
 @app.get("/api/status")
 async def api_status():
     active = get_active_blackout()
+    # Probe local Ollama so the GUI can show "Ollama running" on startup
+    # without forcing the user to open Settings first.
+    ollama_connected = False
+    try:
+        import httpx as _httpx_status
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+        async with _httpx_status.AsyncClient(timeout=2.0) as c:
+            r = await c.get(f"{ollama_url}/api/tags")
+            ollama_connected = (r.status_code == 200)
+    except Exception:
+        ollama_connected = False
+
     return {
-        "connected":     state.connected,
-        "cycle_running": state.cycle_running,
-        "last_error":    state.last_error,
-        "environment":   settings.ENVIRONMENT,
+        "connected":         state.connected,
+        "cycle_running":     state.cycle_running,
+        "last_error":        state.last_error,
+        "environment":       settings.ENVIRONMENT,
+        "ollama_connected":  ollama_connected,
+        "ollama_base_url":   os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         "news_blackout": {
             "active":     active is not None,
             "event_name": active.name if active else None,
